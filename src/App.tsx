@@ -178,6 +178,7 @@ function App() {
     n.toLocaleString('en-GB', { maximumFractionDigits: digits })
 
   const [planOpen, setPlanOpen] = useState(false)
+  const [riskOpen, setRiskOpen] = useState(false)
 
   useEffect(() => {
     if (!planOpen) return
@@ -192,6 +193,20 @@ function App() {
       window.removeEventListener('keydown', onKey)
     }
   }, [planOpen])
+
+  useEffect(() => {
+    if (!riskOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRiskOpen(false)
+    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [riskOpen])
 
   const projected = useMemo(() => {
     const map: Record<string, number> = {}
@@ -221,34 +236,16 @@ function App() {
     <div className="app">
       <header className="header">
         <div className="brand">
-          <div className="brand-mark" aria-hidden>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 2c0 6-4 9-8 10 4 1 8 4 8 10 0-6 4-9 8-10-4-1-8-4-8-10z"
-                fill="currentColor"
-                opacity="0.95"
-              />
-            </svg>
-          </div>
-          <div className="brand-name">
-            Scenario<b>One</b>
-          </div>
+          <img src="/logo.jpeg" className="brand-mark-img" alt="ScenarioOne Logo" width="360" />
         </div>
-        <span className="pill">
-          <span className="pill-dot" />
-          UK 2040 nature-positive pathway
-        </span>
+        <span className="header-tag">Business-Model Nature Stress Test</span>
       </header>
 
       <section className="hero">
-        <span className="eyebrow">Business-model nature stress test</span>
-        <h1>
-          Will this farm still <em>work in 2040?</em>
-        </h1>
         <p>
           Enter your UK crop operation. We stress-test it against the UK's 2040
-          nature-positive pathway — derived from the 25 Year Environment Plan,
-          EIP 2023 and Kunming-Montreal targets — and return where the business
+          nature-positive pathway derived from the 25 Year Environment Plan,
+          EIP 2023 and Kunming-Montreal targets and return where the business
           model breaks and how to close the gap.
         </p>
       </section>
@@ -407,7 +404,32 @@ function App() {
         </div>
 
         <div className="card assessment">
-          <h2>2040 stress test</h2>
+          <div className="assessment-head">
+            <h2>2040 stress test</h2>
+            <div className="assessment-btns">
+              {deficits.length > 0 && (
+                <button
+                  type="button"
+                  className="assess-btn assess-btn-risk"
+                  onClick={() => setRiskOpen(true)}
+                  id="at-risk-btn"
+                >
+                  At Risk
+                  <span className="assess-btn-count">{deficits.length}</span>
+                </button>
+              )}
+              {levers.length > 0 && (
+                <button
+                  type="button"
+                  className="assess-btn assess-btn-plan"
+                  onClick={() => setPlanOpen(true)}
+                  id="transition-plan-btn"
+                >
+                  Transition Plan
+                </button>
+              )}
+            </div>
+          </div>
           <p className="card-sub">
             Composite viability score and breakdown across five nature-risk vectors.
           </p>
@@ -435,39 +457,6 @@ function App() {
             <SpiderChart vectors={vectors} score={score} bandKey={band.key} />
           </div>
 
-          <div className="score-block">
-            <span className={`band ${band.className}`}>
-              <span className="dot" />
-              {band.label}
-            </span>
-          </div>
-
-          {deficits.length > 0 && (
-            <div className="deficits">
-              {deficits.map((v) => (
-                <div className="deficit" key={v.key}>
-                  <span className="deficit-tag">{v.label}</span>
-                  <span className="deficit-text">{v.deficit}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <p className="narrative">{band.narrative}</p>
-
-          {levers.length > 0 && (
-            <button
-              type="button"
-              className="plan-btn"
-              onClick={() => setPlanOpen(true)}
-            >
-              <span>View transition plan</span>
-              <span className="plan-btn-meta">{levers.length} lever{levers.length === 1 ? '' : 's'} · +{projected.lift} projected</span>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-                <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          )}
         </div>
       </div>
 
@@ -551,6 +540,65 @@ function App() {
                 type="button"
                 className="modal-action"
                 onClick={() => setPlanOpen(false)}
+              >
+                Close
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {riskOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setRiskOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="risk-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="modal-head">
+              <div>
+                <span className="modal-eyebrow">Nature risk vectors</span>
+                <h2 id="risk-title" className="modal-title">
+                  At <em>Risk</em>
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setRiskOpen(false)}
+                aria-label="Close at risk panel"
+              >
+                ×
+              </button>
+            </header>
+            <p className="modal-intro">
+              Vectors below the viability threshold under the UK 2040 nature-positive pathway.
+            </p>
+            <div className="modal-levers">
+              {deficits.map((v) => (
+                <div className="lever" key={v.key}>
+                  <div className="lever-head">
+                    <span className="lever-label">{v.label}</span>
+                    <span className={`band ${band.className}`} style={{fontSize: '12px', padding: '4px 10px'}}>
+                      <span className="dot" />
+                      Score: {v.score}
+                    </span>
+                  </div>
+                  <p className="lever-detail">{v.deficit}</p>
+                </div>
+              ))}
+            </div>
+            <footer className="modal-foot">
+              <button
+                type="button"
+                className="modal-action"
+                onClick={() => setRiskOpen(false)}
               >
                 Close
               </button>

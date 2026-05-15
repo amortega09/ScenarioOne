@@ -12,8 +12,18 @@
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 24px;
+}
+
+.header-tag {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--moss-700);
+  text-align: right;
+  white-space: nowrap;
 }
 
 .brand {
@@ -22,19 +32,15 @@
   gap: 12px;
 }
 
-.brand-mark {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--moss-400), var(--moss-600));
-  color: var(--cream);
-  box-shadow: var(--shadow-md);
+.brand-mark-img {
+  width: 360px;
+  height: auto;
+  border-radius: 8px;
+  object-fit: contain;
+  mix-blend-mode: multiply;
 }
 
 .brand-name {
-  font-family: 'Instrument Serif', 'Fraunces', serif;
   font-weight: 500;
   font-size: 22px;
   letter-spacing: -0.2px;
@@ -54,9 +60,8 @@
   border-radius: 999px;
   font-size: 13px;
   color: var(--moss-700);
-  background: rgba(255, 255, 255, 0.6);
+  background: #ffffff;
   border: 1px solid rgba(67, 104, 67, 0.12);
-  backdrop-filter: blur(8px);
 }
 
 .pill-dot {
@@ -78,7 +83,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 720px;
+  max-width: 100%;
 }
 
 .eyebrow {
@@ -90,7 +95,6 @@
 }
 
 .hero h1 {
-  font-family: 'Instrument Serif', 'Fraunces', serif;
   font-weight: 400;
   font-size: clamp(36px, 5vw, 56px);
   line-height: 1.05;
@@ -109,7 +113,8 @@
   color: var(--mist);
   font-size: 17px;
   line-height: 1.55;
-  max-width: 580px;
+  max-width: 100%;
+  font-style: italic;
 }
 
 /* Main grid */
@@ -117,7 +122,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: 28px;
-  align-items: start;
+  align-items: stretch;
 }
 
 @media (max-width: 900px) {
@@ -127,16 +132,14 @@
 }
 
 .card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(67, 104, 67, 0.08);
-  border-radius: var(--radius-xl);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-lg);
   padding: 32px;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .card h2 {
-  font-family: 'Instrument Serif', 'Fraunces', serif;
   font-weight: 500;
   font-size: 22px;
   letter-spacing: -0.3px;
@@ -184,7 +187,6 @@
 }
 
 .slider-value {
-  font-family: 'Instrument Serif', 'Fraunces', serif;
   font-feature-settings: 'tnum';
   font-size: 20px;
   font-weight: 500;
@@ -267,11 +269,75 @@
 
 /* Assessment card */
 .assessment {
-  position: sticky;
-  top: 24px;
   display: flex;
   flex-direction: column;
-  gap: 26px;
+  gap: 16px;
+}
+
+.assessment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.assessment-head h2 {
+  margin: 0;
+}
+
+.assessment-btns {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.assess-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all 0.2s var(--ease);
+  white-space: nowrap;
+}
+
+.assess-btn-risk {
+  background: #ffffff;
+  color: #a14a3a;
+  border-color: rgba(161, 74, 58, 0.3);
+}
+
+.assess-btn-risk:hover {
+  background: rgba(161, 74, 58, 0.07);
+  border-color: rgba(161, 74, 58, 0.5);
+}
+
+.assess-btn-plan {
+  background: var(--moss-600);
+  color: #ffffff;
+  border-color: var(--moss-600);
+}
+
+.assess-btn-plan:hover {
+  background: var(--moss-700);
+  border-color: var(--moss-700);
+}
+
+.assess-btn-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(161, 74, 58, 0.15);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .score-block {
@@ -366,7 +432,7 @@
   font-family: inherit;
   font-size: 14px;
   color: var(--moss-900);
-  background-color: rgba(255, 255, 255, 0.7);
+  background-color: #ffffff;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23436843' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
@@ -419,7 +485,7 @@
   padding: 10px 30px 10px 12px;
   border: 1px solid rgba(67, 104, 67, 0.18);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.7);
+  background: #ffffff;
   color: var(--moss-900);
   text-align: right;
   font-feature-settings: 'tnum';
@@ -518,7 +584,6 @@
 }
 
 .totals-value {
-  font-family: 'Instrument Serif', 'Fraunces', serif;
   font-feature-settings: 'tnum';
   font-size: 22px;
   color: var(--moss-800);
@@ -572,7 +637,6 @@
 }
 
 .spider-center-score {
-  font-family: 'Instrument Serif', 'Fraunces', serif;
   font-size: 44px;
   fill: var(--moss-900);
   font-feature-settings: 'tnum';
@@ -595,7 +659,6 @@
 }
 
 .spider-score {
-  font-family: 'Instrument Serif', 'Fraunces', serif;
   font-size: 15px;
   fill: var(--moss-700);
   font-feature-settings: 'tnum';
@@ -700,9 +763,7 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(22, 36, 26, 0.5);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(22, 36, 26, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -743,7 +804,6 @@
 }
 
 .modal-title {
-  font-family: 'Instrument Serif', 'Fraunces', serif;
   font-weight: 400;
   font-size: 28px;
   line-height: 1.1;
@@ -805,7 +865,6 @@
 }
 
 .modal-stat-value {
-  font-family: 'Instrument Serif', 'Fraunces', serif;
   font-size: 32px;
   letter-spacing: -1.2px;
   color: var(--moss-800);
