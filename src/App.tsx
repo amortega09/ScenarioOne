@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import {
   REGIONS,
@@ -171,8 +171,40 @@ function App() {
   const [inputs, setInputs] = useState<FarmInputs>(DEFAULT_INPUTS)
 
   const assessment = useMemo(() => computeAssessment(inputs), [inputs])
-  const { score, band, vectors, levers, totalHa } = assessment
+  const { score, band, vectors, levers, totalHa, totals } = assessment
   const deficits = vectors.filter((v) => v.deficit)
+
+  const fmt = (n: number, digits = 0) =>
+    n.toLocaleString('en-GB', { maximumFractionDigits: digits })
+
+  const [planOpen, setPlanOpen] = useState(false)
+
+  useEffect(() => {
+    if (!planOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPlanOpen(false)
+    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [planOpen])
+
+  const projected = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const v of vectors) map[v.key] = v.score
+    for (const l of levers) {
+      for (const [k, delta] of Object.entries(l.impact)) {
+        map[k] = Math.min(100, (map[k] ?? 0) + (delta ?? 0))
+      }
+    }
+    const arr = Object.values(map)
+    const avg = arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0
+    return { score: Math.round(avg), lift: Math.round(avg - score) }
+  }, [vectors, levers, score])
 
   const updateCrop = (uid: string, patch: Partial<CropRow>) => {
     setInputs((prev) => ({
@@ -380,6 +412,25 @@ function App() {
             Composite viability score and breakdown across five nature-risk vectors.
           </p>
 
+          <div className="totals">
+            <div className="totals-tile">
+              <p className="totals-label">Production</p>
+              <p className="totals-value">{fmt(totals.production_t)}<span className="totals-unit"> t/yr</span></p>
+            </div>
+            <div className="totals-tile">
+              <p className="totals-label">Freshwater load</p>
+              <p className="totals-value">{fmt(totals.freshwater_m3 / 1000)}<span className="totals-unit"> ML/yr</span></p>
+            </div>
+            <div className="totals-tile">
+              <p className="totals-label">Field emissions</p>
+              <p className="totals-value">{fmt(totals.emissions_tco2e)}<span className="totals-unit"> tCO₂e/yr</span></p>
+            </div>
+            <div className="totals-tile">
+              <p className="totals-label">Synthetic N</p>
+              <p className="totals-value">{fmt(totals.n_applied_t, 1)}<span className="totals-unit"> t N/yr</span></p>
+            </div>
+          </div>
+
           <div className="spider-wrap">
             <SpiderChart vectors={vectors} score={score} bandKey={band.key} />
           </div>
@@ -405,8 +456,79 @@ function App() {
           <p className="narrative">{band.narrative}</p>
 
           {levers.length > 0 && (
-            <div className="levers">
-              <h3 className="levers-title">Transition plan — candidate levers</h3>
+            <button
+              type="button"
+              className="plan-btn"
+              onClick={() => setPlanOpen(true)}
+            >
+              <span>View transition plan</span>
+              <span className="plan-btn-meta">{levers.length} lever{levers.length === 1 ? '' : 's'} · +{projected.lift} projected</span>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+                <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <footer className="footer">
+        ScenarioOne · UK 2040 nature-positive stress test · Coefficients illustrative
+      </footer>
+
+      {planOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setPlanOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="plan-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="modal-head">
+              <div>
+                <span className="modal-eyebrow">Transition plan</span>
+                <h2 id="plan-title" className="modal-title">
+                  Closing the gap to <em>2040</em>
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setPlanOpen(false)}
+                aria-label="Close transition plan"
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="modal-summary">
+              <div className="modal-stat">
+                <span className="modal-stat-label">Current viability</span>
+                <span className="modal-stat-value">{score}</span>
+              </div>
+              <svg width="22" height="14" viewBox="0 0 22 14" className="modal-arrow" aria-hidden>
+                <path d="M2 7h17m0 0l-5-5m5 5l-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <div className="modal-stat">
+                <span className="modal-stat-label">If all levers adopted</span>
+                <span className="modal-stat-value modal-stat-value-strong">
+                  {projected.score}
+                  <span className="modal-lift">+{projected.lift}</span>
+                </span>
+              </div>
+            </div>
+
+            <p className="modal-intro">
+              Candidate adaptations that close the deficit on the failing vectors.
+              Each is sized to its projected effect on the five-vector profile; the
+              farm chooses the mix.
+            </p>
+
+            <div className="modal-levers">
               {levers.map((lever, i) => (
                 <div className="lever" key={i}>
                   <div className="lever-head">
@@ -423,13 +545,19 @@ function App() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      </div>
 
-      <footer className="footer">
-        ScenarioOne · UK 2040 nature-positive stress test · Coefficients illustrative
-      </footer>
+            <footer className="modal-foot">
+              <button
+                type="button"
+                className="modal-action"
+                onClick={() => setPlanOpen(false)}
+              >
+                Close
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

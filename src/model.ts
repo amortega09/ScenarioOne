@@ -1,5 +1,20 @@
-// Illustrative coefficients for the UK 2040 nature-positive pathway stress test.
-// All numbers are placeholders — to be replaced with FABLE / Defra / catchment data.
+// ScenarioOne — UK 2040 nature-positive stress test for crop agriculture.
+//
+// Calculation approach mirrors FABLE Calculator:
+//   production_t   = area_ha × yield_t_per_ha
+//   water_m3       = production_t × (green + blue + grey water footprint)
+//   N_applied_kg   = area_ha × N_rate × fertiliser_intensity_multiplier
+//   emissions_kg   = N_applied_kg × IPCC tier-1 EF (1%) × 44/28 × 298 (GWP100)
+//                    + residue / tillage constant per ha
+//
+// Sources:
+//  - Water footprints (wf_*_m3_t): FABLE 2021 EmbedWaterCrop (Mekonnen-Hoekstra global means).
+//  - Yields & N rates: UK reference values (Defra/AHDB typical, 2020-22). Hand-coded — to be
+//    replaced with UK FABLE instance / Defra Farm Practices Survey when available.
+//  - Emission factors: IPCC 2019 Refinement, tier 1.
+//
+// Peas water proxied from field_beans (FABLE has no peas water entry).
+// Linseed grey-water set to 0 (FABLE has no linseed grey entry).
 
 export type RegionKey =
   | 'east_england'
@@ -29,52 +44,59 @@ export type CropKey =
 
 export type SoilTypeKey = 'loam' | 'clay' | 'chalky' | 'sandy' | 'peaty'
 
-export type Region = {
+type Region = {
   key: RegionKey
   label: string
-  waterMod: number
-  biodivMod: number
-  landMod: number
+  waterMod: number   // catchment stress multiplier (higher = drier)
+  biodivMod: number  // habitat-pressure multiplier
+  landMod: number    // protected-area / land-pressure multiplier
 }
 
 export const REGIONS: Region[] = [
-  { key: 'east_england',     label: 'East of England',      waterMod: 1.4, biodivMod: 1.3, landMod: 1.2 },
-  { key: 'south_east',       label: 'South East',           waterMod: 1.3, biodivMod: 1.2, landMod: 1.3 },
-  { key: 'south_west',       label: 'South West',           waterMod: 0.9, biodivMod: 1.1, landMod: 1.0 },
-  { key: 'east_midlands',    label: 'East Midlands',        waterMod: 1.1, biodivMod: 1.0, landMod: 1.1 },
-  { key: 'west_midlands',    label: 'West Midlands',        waterMod: 0.9, biodivMod: 1.0, landMod: 1.0 },
-  { key: 'yorkshire',        label: 'Yorkshire & Humber',   waterMod: 1.0, biodivMod: 0.9, landMod: 1.0 },
-  { key: 'north_east',       label: 'North East',           waterMod: 0.8, biodivMod: 0.9, landMod: 0.9 },
-  { key: 'north_west',       label: 'North West',           waterMod: 0.7, biodivMod: 1.0, landMod: 0.9 },
-  { key: 'scotland',         label: 'Scotland',             waterMod: 0.7, biodivMod: 1.1, landMod: 1.0 },
-  { key: 'wales',            label: 'Wales',                waterMod: 0.8, biodivMod: 1.1, landMod: 1.0 },
-  { key: 'northern_ireland', label: 'Northern Ireland',     waterMod: 0.8, biodivMod: 1.0, landMod: 0.9 },
+  { key: 'east_england',     label: 'East of England',    waterMod: 1.4, biodivMod: 1.3, landMod: 1.2 },
+  { key: 'south_east',       label: 'South East',         waterMod: 1.3, biodivMod: 1.2, landMod: 1.3 },
+  { key: 'south_west',       label: 'South West',         waterMod: 0.9, biodivMod: 1.1, landMod: 1.0 },
+  { key: 'east_midlands',    label: 'East Midlands',      waterMod: 1.1, biodivMod: 1.0, landMod: 1.1 },
+  { key: 'west_midlands',    label: 'West Midlands',      waterMod: 0.9, biodivMod: 1.0, landMod: 1.0 },
+  { key: 'yorkshire',        label: 'Yorkshire & Humber', waterMod: 1.0, biodivMod: 0.9, landMod: 1.0 },
+  { key: 'north_east',       label: 'North East',         waterMod: 0.8, biodivMod: 0.9, landMod: 0.9 },
+  { key: 'north_west',       label: 'North West',         waterMod: 0.7, biodivMod: 1.0, landMod: 0.9 },
+  { key: 'scotland',         label: 'Scotland',           waterMod: 0.7, biodivMod: 1.1, landMod: 1.0 },
+  { key: 'wales',            label: 'Wales',              waterMod: 0.8, biodivMod: 1.1, landMod: 1.0 },
+  { key: 'northern_ireland', label: 'Northern Ireland',   waterMod: 0.8, biodivMod: 1.0, landMod: 0.9 },
 ]
 
-export type Crop = {
+type Crop = {
   key: CropKey
   label: string
-  water: number
-  nDemand: number
-  biodiv: number
-  soil: number
+  // UK reference (Defra/AHDB)
+  yield_t_ha: number
+  n_kg_ha: number
+  fixesN: boolean
+  // FABLE EmbedWaterCrop (m³ per tonne of crop output)
+  wf_green_m3_t: number
+  wf_blue_m3_t: number
+  wf_grey_m3_t: number
+  // Hand-tuned 0-1 proxy until better data
+  tillage_intensity: number
+  biodiv_intensity: number
 }
 
 export const CROPS: Crop[] = [
-  { key: 'wheat',       label: 'Winter wheat', water: 0.4, nDemand: 0.8, biodiv: 0.6, soil: 0.7 },
-  { key: 'barley',      label: 'Barley',       water: 0.3, nDemand: 0.6, biodiv: 0.5, soil: 0.5 },
-  { key: 'oats',        label: 'Oats',         water: 0.3, nDemand: 0.4, biodiv: 0.3, soil: 0.3 },
-  { key: 'osr',         label: 'Oilseed rape', water: 0.5, nDemand: 0.9, biodiv: 0.7, soil: 0.8 },
-  { key: 'sugar_beet',  label: 'Sugar beet',   water: 0.7, nDemand: 0.7, biodiv: 0.6, soil: 0.9 },
-  { key: 'potatoes',    label: 'Potatoes',     water: 0.9, nDemand: 0.7, biodiv: 0.6, soil: 0.8 },
-  { key: 'field_beans', label: 'Field beans',  water: 0.3, nDemand: 0.1, biodiv: 0.2, soil: 0.2 },
-  { key: 'peas',        label: 'Peas',         water: 0.3, nDemand: 0.1, biodiv: 0.2, soil: 0.2 },
-  { key: 'maize',       label: 'Maize',        water: 0.7, nDemand: 0.7, biodiv: 0.7, soil: 0.9 },
-  { key: 'linseed',     label: 'Linseed',      water: 0.3, nDemand: 0.4, biodiv: 0.3, soil: 0.4 },
-  { key: 'rye',         label: 'Rye',          water: 0.3, nDemand: 0.4, biodiv: 0.3, soil: 0.3 },
+  { key: 'wheat',       label: 'Winter wheat', yield_t_ha:  8.0, n_kg_ha: 180, fixesN: false, wf_green_m3_t: 1665, wf_blue_m3_t: 710,  wf_grey_m3_t: 142,  tillage_intensity: 0.6, biodiv_intensity: 0.6 },
+  { key: 'barley',      label: 'Barley',       yield_t_ha:  6.5, n_kg_ha: 120, fixesN: false, wf_green_m3_t: 2539, wf_blue_m3_t: 751,  wf_grey_m3_t: 215,  tillage_intensity: 0.5, biodiv_intensity: 0.5 },
+  { key: 'oats',        label: 'Oats',         yield_t_ha:  5.5, n_kg_ha: 100, fixesN: false, wf_green_m3_t: 1902, wf_blue_m3_t:  88,  wf_grey_m3_t: 439,  tillage_intensity: 0.4, biodiv_intensity: 0.3 },
+  { key: 'osr',         label: 'Oilseed rape', yield_t_ha:  3.3, n_kg_ha: 220, fixesN: false, wf_green_m3_t: 3030, wf_blue_m3_t: 768,  wf_grey_m3_t: 344,  tillage_intensity: 0.6, biodiv_intensity: 0.7 },
+  { key: 'sugar_beet',  label: 'Sugar beet',   yield_t_ha: 80.0, n_kg_ha:  90, fixesN: false, wf_green_m3_t:   92, wf_blue_m3_t:   1,  wf_grey_m3_t:  37,  tillage_intensity: 0.9, biodiv_intensity: 0.6 },
+  { key: 'potatoes',    label: 'Potatoes',     yield_t_ha: 45.0, n_kg_ha: 170, fixesN: false, wf_green_m3_t:  339, wf_blue_m3_t:  73,  wf_grey_m3_t:  40,  tillage_intensity: 0.9, biodiv_intensity: 0.6 },
+  { key: 'field_beans', label: 'Field beans',  yield_t_ha:  4.0, n_kg_ha:   0, fixesN: true,  wf_green_m3_t: 3533, wf_blue_m3_t: 329,  wf_grey_m3_t: 726,  tillage_intensity: 0.4, biodiv_intensity: 0.2 },
+  { key: 'peas',        label: 'Peas',         yield_t_ha:  3.8, n_kg_ha:   0, fixesN: true,  wf_green_m3_t: 3533, wf_blue_m3_t: 329,  wf_grey_m3_t: 726,  tillage_intensity: 0.4, biodiv_intensity: 0.2 },
+  { key: 'maize',       label: 'Forage maize', yield_t_ha: 40.0, n_kg_ha: 130, fixesN: false, wf_green_m3_t: 1832, wf_blue_m3_t:  95,  wf_grey_m3_t: 237,  tillage_intensity: 0.8, biodiv_intensity: 0.7 },
+  { key: 'linseed',     label: 'Linseed',      yield_t_ha:  2.2, n_kg_ha:  80, fixesN: false, wf_green_m3_t: 5206, wf_blue_m3_t: 1380, wf_grey_m3_t:   0,  tillage_intensity: 0.5, biodiv_intensity: 0.4 },
+  { key: 'rye',         label: 'Rye',          yield_t_ha:  4.5, n_kg_ha:  90, fixesN: false, wf_green_m3_t: 2665, wf_blue_m3_t:   0,  wf_grey_m3_t: 1672, tillage_intensity: 0.4, biodiv_intensity: 0.3 },
 ]
 
-export type Soil = { key: SoilTypeKey; label: string; mod: number }
+type Soil = { key: SoilTypeKey; label: string; mod: number }
 
 export const SOIL_TYPES: Soil[] = [
   { key: 'loam',   label: 'Loam',   mod: 0.7 },
@@ -93,12 +115,12 @@ export type CropRow = {
 export type FarmInputs = {
   region: RegionKey
   crops: CropRow[]
-  irrigationPct: number
-  fertiliserIntensity: number
+  irrigationPct: number       // 0-100, % of area irrigated
+  fertiliserIntensity: number // 0-100, slider where 65 ≈ UK average
   soilType: SoilTypeKey
 }
 
-export type VectorKey = 'land' | 'water' | 'soil' | 'biodiv' | 'supply'
+type VectorKey = 'land' | 'water' | 'soil' | 'biodiv' | 'supply'
 
 export type VectorResult = {
   key: VectorKey
@@ -107,7 +129,7 @@ export type VectorResult = {
   deficit: string | null
 }
 
-export type Lever = {
+type Lever = {
   label: string
   detail: string
   impact: Partial<Record<VectorKey, number>>
@@ -120,13 +142,36 @@ export type Band = {
   narrative: string
 }
 
-export type Assessment = {
+type Totals = {
+  production_t: number          // tonnes/yr
+  freshwater_m3: number         // m³/yr — blue (irrigation) + grey (pollution dilution).
+                                // Green water (rainfall absorbed by crop) is EXCLUDED:
+                                // it isn't abstracted and shouldn't be scored against
+                                // a catchment ceiling.
+  emissions_tco2e: number       // tCO₂e/yr
+  n_applied_t: number           // tonnes N/yr
+}
+
+type Assessment = {
   score: number
   band: Band
   vectors: VectorResult[]
   levers: Lever[]
   totalHa: number
+  totals: Totals
 }
+
+// UK 2040 nature-positive pathway thresholds (per-hectare, illustrative).
+// Sources to wire next: Defra Environmental Land Management targets, EA abstraction caps,
+// CCC Sixth Carbon Budget agricultural pathway, 25YEP soil-organic-matter targets.
+const T = {
+  // Freshwater LOAD = blue (irrigation) + grey (pollution-dilution).
+  // Green water (rainfall absorbed by crop) is excluded — it isn't abstracted.
+  freshwater_m3_ha: 2500,
+  n_kg_ha:          180,   // kg N/ha — broadly aligned with CCC ambition (~30% cut on 2020 avg)
+  emissions:        4.0,   // tCO₂e/ha — Sixth Carbon Budget arable trajectory
+  hectarage:        500,   // ha — at which "land pressure" stress saturates for a single business
+} as const
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n))
@@ -172,34 +217,100 @@ function bandFor(score: number): Band {
 export function computeAssessment(input: FarmInputs): Assessment {
   const region = REGIONS.find((r) => r.key === input.region)!
   const soil = SOIL_TYPES.find((s) => s.key === input.soilType)!
-  const filled = input.crops.filter((c) => c.crop && c.hectares > 0)
-  const totalHa = filled.reduce((s, c) => s + c.hectares, 0)
+  const filled = input.crops
+    .map((c) => ({ row: c, crop: CROPS.find((cc) => cc.key === c.crop) }))
+    .filter((c): c is { row: CropRow; crop: Crop } => !!c.crop && c.row.hectares > 0)
 
-  const sum = (key: 'water' | 'nDemand' | 'biodiv' | 'soil') =>
-    filled.reduce((s, c) => {
-      const crop = CROPS.find((cc) => cc.key === c.crop)
-      return crop ? s + c.hectares * crop[key] : s
-    }, 0)
+  const totalHa = filled.reduce((s, c) => s + c.row.hectares, 0)
 
-  const uniqueCrops = new Set(filled.map((c) => c.crop)).size
+  // Fertiliser intensity scales N application and grey-water (pollution-dilution) load.
+  // 65 ≈ UK baseline; range 0.4–1.6× of UK reference rates.
+  const fertMul = 0.4 + (input.fertiliserIntensity / 100) * 1.2
+
+  // === Production-based aggregates (FABLE-style) ===
+  let production_t = 0
+  let freshwater_m3 = 0  // blue (irrigation) + grey (pollution-dilution); green excluded
+  let n_applied_kg = 0
+  let emissions_kg_co2e = 0
+  let monocultureLoad = 0 // weighted biodiv intensity × ha
+  let tillageLoad = 0     // weighted tillage intensity × ha
+
+  // Irrigation enters the abstraction load linearly: 0% irrigated → no blue water from
+  // FABLE's "fully irrigated" reference; 100% irrigated → full FABLE blue value.
+  const blueScale = input.irrigationPct / 100
+
+  for (const { row, crop } of filled) {
+    const ha = row.hectares
+    const prod_t = ha * crop.yield_t_ha
+    const n_kg = crop.fixesN ? 0 : ha * crop.n_kg_ha * fertMul
+
+    // Freshwater LOAD: blue scaled by irrigation share, grey scaled by fertiliser intensity
+    // (grey water = water needed to dilute fertiliser pollution to ambient quality).
+    const water =
+      prod_t *
+      (crop.wf_blue_m3_t * blueScale + crop.wf_grey_m3_t * fertMul)
+
+    // IPCC tier-1: 1% of synthetic N → N₂O-N, × 44/28 → N₂O, × 298 → CO₂e.
+    const fertEmissions = n_kg * 0.01 * (44 / 28) * 298
+    const residueEmissions = ha * 500 // ~500 kgCO₂e/ha for residues, tillage, cultivation
+    const emissions = fertEmissions + residueEmissions
+
+    production_t += prod_t
+    freshwater_m3 += water
+    n_applied_kg += n_kg
+    emissions_kg_co2e += emissions
+    monocultureLoad += ha * crop.biodiv_intensity
+    tillageLoad += ha * crop.tillage_intensity
+  }
+
+  const uniqueCrops = new Set(filled.map((c) => c.row.crop)).size
   const diversityBonus = Math.min(uniqueCrops * 3, 18)
 
-  const landStress = (totalHa * region.landMod) / 5
-  const landScore = clamp(100 - landStress, 0, 100)
+  // === Per-hectare intensities (the comparable thing across farm sizes) ===
+  const safeHa = totalHa || 1
+  const water_per_ha = freshwater_m3 / safeHa
+  const n_per_ha = n_applied_kg / safeHa
+  const emissions_per_ha = emissions_kg_co2e / safeHa / 1000 // tCO₂e/ha
+  const tillage_per_ha = tillageLoad / safeHa
+  const biodiv_per_ha = monocultureLoad / safeHa
 
-  const irrigationFactor = (input.irrigationPct / 100) * 1.5 + 0.5
-  const waterStress = (sum('water') * irrigationFactor * region.waterMod) / 4
-  const waterScore = clamp(100 - waterStress, 0, 100)
+  // === Vector scores: each starts at 100 and loses 50 when at threshold ===
+  // Catchment stress modifier applies at the score layer, not the absolute load.
+  const waterScore = clamp(
+    100 - ((water_per_ha * region.waterMod) / T.freshwater_m3_ha) * 50,
+    0,
+    100,
+  )
 
-  const fertFactor = (input.fertiliserIntensity / 100) * 0.8 + 0.5
-  const soilStress = (sum('soil') * fertFactor * soil.mod) / 3
-  const soilScore = clamp(100 - soilStress + diversityBonus * 0.3, 0, 100)
+  // Supply = synthetic-N exposure. Heavier penalty than soil because of input-restriction risk.
+  const supplyScore = clamp(100 - (n_per_ha / T.n_kg_ha) * 60, 0, 100)
 
-  const biodivStress = (sum('biodiv') * region.biodivMod) / 4
-  const biodivScore = clamp(100 - biodivStress + diversityBonus, 0, 100)
+  // Soil = tillage + N intensity, modulated by soil type (peaty most fragile).
+  const soilScore = clamp(
+    100 -
+      (tillage_per_ha * soil.mod * 60 +
+        (n_per_ha / T.n_kg_ha) * 30) +
+      diversityBonus * 0.3,
+    0,
+    100,
+  )
 
-  const supplyStress = (sum('nDemand') * fertFactor) / 3
-  const supplyScore = clamp(100 - supplyStress, 0, 100)
+  // Biodiv = monoculture/habitat-cost load, with rotation diversity rewarded heavily.
+  const biodivScore = clamp(
+    100 - biodiv_per_ha * region.biodivMod * 60 + diversityBonus,
+    0,
+    100,
+  )
+
+  // Land = farm size × regional pressure, saturating at T.hectarage.
+  const landScore = clamp(
+    100 - (totalHa / T.hectarage) * 50 * region.landMod,
+    0,
+    100,
+  )
+
+  // === Emissions optionally informs supply (transition-risk signal) ===
+  const emissionsOver = emissions_per_ha > T.emissions
 
   const vectors: VectorResult[] = [
     {
@@ -208,7 +319,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(landScore),
       deficit:
         landScore < 60
-          ? `Cropped area exceeds the region's 2040 land-pressure threshold by ${Math.round(Math.max(landStress - 40, 5))}%.`
+          ? `${Math.round(totalHa)} ha exceeds the regional 2040 land-pressure envelope (${Math.round(T.hectarage / region.landMod)} ha threshold).`
           : null,
     },
     {
@@ -217,7 +328,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(waterScore),
       deficit:
         waterScore < 60
-          ? `Abstraction sits ${Math.round(Math.max(60 - waterScore, 5))}% above the projected 2040 catchment ceiling.`
+          ? `Freshwater load of ${Math.round(water_per_ha).toLocaleString('en-GB')} m³/ha (blue + grey) — ${Math.round((water_per_ha * region.waterMod / T.freshwater_m3_ha - 1) * 100)}% above the 2040 catchment & pollution ceiling.`
           : null,
     },
     {
@@ -226,7 +337,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(soilScore),
       deficit:
         soilScore < 60
-          ? `Cropping intensity exceeds the 2040 soil-health threshold for ${soil.label.toLowerCase()} soils.`
+          ? `Tillage + N intensity on ${soil.label.toLowerCase()} soil above the 2040 soil-health threshold.`
           : null,
     },
     {
@@ -235,7 +346,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(biodivScore),
       deficit:
         biodivScore < 60
-          ? `Habitat & rotation diversity below the 2040 BNG / ELM conditionality threshold.`
+          ? `Rotation diversity and habitat load below the 2040 BNG / ELM conditionality threshold.`
           : null,
     },
     {
@@ -244,7 +355,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(supplyScore),
       deficit:
         supplyScore < 60
-          ? `Synthetic-N dependence above the 2040 input-restriction envelope.`
+          ? `Synthetic-N at ${Math.round(n_per_ha)} kg/ha — above the 2040 input-restriction envelope (${T.n_kg_ha} kg/ha).${emissionsOver ? ` Field emissions ${emissions_per_ha.toFixed(1)} tCO₂e/ha breach the 4.0 ceiling.` : ''}`
           : null,
     },
   ]
@@ -257,35 +368,40 @@ export function computeAssessment(input: FarmInputs): Assessment {
   if (waterScore < 70) {
     levers.push({
       label: 'Cut irrigation 30%',
-      detail: 'Shift high-water crops to dryland varieties; deploy precision irrigation on remainder.',
+      detail:
+        'Shift high-water crops to dryland varieties; deploy precision irrigation on remainder.',
       impact: { water: 14 },
     })
   }
   if (soilScore < 70) {
     levers.push({
       label: 'Introduce legume rotation on 20% of area',
-      detail: 'Replace a fifth of N-heavy crops with field beans or peas to fix nitrogen and rest soils.',
+      detail:
+        'Replace a fifth of N-heavy crops with field beans or peas to fix nitrogen and rest soils.',
       impact: { soil: 12, supply: 10, biodiv: 4 },
     })
   }
   if (biodivScore < 70) {
     levers.push({
       label: 'Convert 10% to herbal leys & field margins',
-      detail: 'Restore rotational diversity and field-margin habitat — qualifies for ELM uplift payments.',
+      detail:
+        'Restore rotational diversity and field-margin habitat — qualifies for ELM uplift payments.',
       impact: { biodiv: 16, soil: 5 },
     })
   }
   if (supplyScore < 70) {
     levers.push({
       label: 'Reduce fertiliser intensity 25%',
-      detail: 'Move to variable-rate N and integrate organic amendments to cut synthetic dependency.',
+      detail:
+        'Move to variable-rate N and integrate organic amendments to cut synthetic dependency.',
       impact: { supply: 12, soil: 6 },
     })
   }
   if (landScore < 70 && totalHa > 0) {
     levers.push({
       label: 'Retire 10% of lowest-yielding land',
-      detail: 'Move marginal area into agroforestry or restoration to reduce footprint while qualifying for transition finance.',
+      detail:
+        'Move marginal area into agroforestry or restoration to reduce footprint while qualifying for transition finance.',
       impact: { land: 10, biodiv: 6 },
     })
   }
@@ -296,5 +412,11 @@ export function computeAssessment(input: FarmInputs): Assessment {
     vectors,
     levers,
     totalHa,
+    totals: {
+      production_t,
+      freshwater_m3,
+      emissions_tco2e: emissions_kg_co2e / 1000,
+      n_applied_t: n_applied_kg / 1000,
+    },
   }
 }
