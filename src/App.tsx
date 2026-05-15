@@ -1,108 +1,189 @@
 import { useMemo, useState } from 'react'
 import './App.css'
+import {
+  REGIONS,
+  CROPS,
+  SOIL_TYPES,
+  computeAssessment,
+  type FarmInputs,
+  type CropRow,
+  type CropKey,
+  type RegionKey,
+  type SoilTypeKey,
+  type VectorResult,
+  type Band,
+} from './model'
 
-type Variable = {
-  id: string
-  label: string
-  hint: string
-  min: number
-  max: number
-  step: number
-  default: number
-  unit?: string
-  /**
-   * +1 = higher slider value improves the score (e.g. renewables).
-   * -1 = higher slider value worsens it (e.g. emissions).
-   */
-  weight: 1 | -1
+const DEFAULT_INPUTS: FarmInputs = {
+  region: 'east_england',
+  crops: [
+    { uid: 'a1', crop: 'wheat', hectares: 180 },
+    { uid: 'a2', crop: 'osr', hectares: 60 },
+    { uid: 'a3', crop: 'barley', hectares: 80 },
+  ],
+  irrigationPct: 15,
+  fertiliserIntensity: 65,
+  soilType: 'loam',
 }
 
-const VARIABLES: Variable[] = [
-  { id: 'x1', label: 'Variable A', hint: 'Operational intensity', min: 0, max: 100, step: 1, default: 60, weight: -1 },
-  { id: 'x2', label: 'Variable B', hint: 'Resource efficiency', min: 0, max: 100, step: 1, default: 40, weight: 1 },
-  { id: 'x3', label: 'Variable C', hint: 'Supply chain exposure', min: 0, max: 100, step: 1, default: 50, weight: -1 },
-  { id: 'x4', label: 'Variable D', hint: 'Adaptation capacity', min: 0, max: 100, step: 1, default: 45, weight: 1 },
-  { id: 'x5', label: 'Variable E', hint: 'Long-term horizon', min: 0, max: 100, step: 1, default: 55, weight: 1 },
-]
-
-type Band = {
-  key: 'critical' | 'risk' | 'sustainable' | 'future'
-  label: string
-  className: string
-  narrative: string
+function newRow(): CropRow {
+  return { uid: Math.random().toString(36).slice(2, 9), crop: '', hectares: 0 }
 }
 
-function bandFor(score: number): Band {
-  if (score < 35) {
-    return {
-      key: 'critical',
-      label: 'Critical exposure',
-      className: 'band-critical',
-      narrative:
-        'Strategy is materially exposed to environmental and transition risk. Stress-test against tightening regulation and disclosure.',
-    }
-  }
-  if (score < 55) {
-    return {
-      key: 'risk',
-      label: 'At risk',
-      className: 'band-risk',
-      narrative:
-        'Plan shows partial resilience but key levers are unhedged. Identify the two metrics with greatest downside before committing capital.',
-    }
-  }
-  if (score < 75) {
-    return {
-      key: 'sustainable',
-      label: 'Sustainable',
-      className: 'band-sustainable',
-      narrative:
-        'Strategy holds up under current scenarios. Consider widening the time horizon and modelling second-order supply effects.',
-    }
-  }
-  return {
-    key: 'future',
-    label: 'Future-proof',
-    className: 'band-future',
-    narrative:
-      'Robust across modelled pathways. Maintain the leading indicators and re-run as input assumptions shift.',
-  }
+function bandColor(key: Band['key']) {
+  if (key === 'critical') return '#a14a3a'
+  if (key === 'risk') return '#b07a2a'
+  if (key === 'sustainable') return '#436843'
+  return '#345237'
 }
 
-function computeScore(values: Record<string, number>): number {
-  let total = 0
-  for (const v of VARIABLES) {
-    const raw = values[v.id]
-    const contribution = v.weight === 1 ? raw : 100 - raw
-    total += contribution
-  }
-  return Math.round(total / VARIABLES.length)
+type SpiderProps = {
+  vectors: VectorResult[]
+  score: number
+  bandKey: Band['key']
+}
+
+function SpiderChart({ vectors, score, bandKey }: SpiderProps) {
+  const cx = 170
+  const cy = 145
+  const radius = 92
+  const labelRadius = 116
+  const n = vectors.length
+
+  const angle = (i: number) => -Math.PI / 2 + (i * 2 * Math.PI) / n
+  const point = (i: number, r: number) => ({
+    x: cx + r * Math.cos(angle(i)),
+    y: cy + r * Math.sin(angle(i)),
+  })
+
+  const gridLevels = [0.25, 0.5, 0.75, 1]
+  const valuePoints = vectors
+    .map((v, i) => {
+      const p = point(i, radius * (v.score / 100))
+      return `${p.x.toFixed(2)},${p.y.toFixed(2)}`
+    })
+    .join(' ')
+
+  const color = bandColor(bandKey)
+
+  return (
+    <svg
+      viewBox="0 0 340 290"
+      className="spider"
+      role="img"
+      aria-label="Five-vector viability profile"
+    >
+      {gridLevels.map((level, gi) => {
+        const pts = vectors
+          .map((_, i) => {
+            const p = point(i, radius * level)
+            return `${p.x.toFixed(2)},${p.y.toFixed(2)}`
+          })
+          .join(' ')
+        return <polygon key={gi} points={pts} className="spider-grid" />
+      })}
+
+      {vectors.map((_, i) => {
+        const p = point(i, radius)
+        return (
+          <line
+            key={i}
+            x1={cx}
+            y1={cy}
+            x2={p.x}
+            y2={p.y}
+            className="spider-axis"
+          />
+        )
+      })}
+
+      <polygon
+        points={valuePoints}
+        className="spider-value"
+        style={{ fill: color, fillOpacity: 0.15, stroke: color }}
+      />
+
+      {vectors.map((v, i) => {
+        const p = point(i, radius * (v.score / 100))
+        return (
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r={3.5}
+            className="spider-dot"
+            style={{ fill: color }}
+          />
+        )
+      })}
+
+      <text
+        x={cx}
+        y={cy + 2}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        className="spider-center-score"
+      >
+        {score}
+      </text>
+      <text
+        x={cx}
+        y={cy + 28}
+        textAnchor="middle"
+        className="spider-center-label"
+      >
+        Viability
+      </text>
+
+      {vectors.map((v, i) => {
+        const p = point(i, labelRadius)
+        const a = angle(i)
+        const cos = Math.cos(a)
+        const anchor: 'start' | 'middle' | 'end' =
+          cos > 0.3 ? 'start' : cos < -0.3 ? 'end' : 'middle'
+        const labelDy = anchor === 'middle' && Math.sin(a) > 0 ? 12 : -4
+        return (
+          <g key={i}>
+            <text
+              x={p.x}
+              y={p.y + labelDy}
+              textAnchor={anchor}
+              className="spider-label"
+            >
+              {v.label}
+            </text>
+            <text
+              x={p.x}
+              y={p.y + labelDy + 16}
+              textAnchor={anchor}
+              className="spider-score"
+            >
+              {v.score}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
 }
 
 function App() {
-  const defaults = useMemo(
-    () => Object.fromEntries(VARIABLES.map((v) => [v.id, v.default])) as Record<string, number>,
-    [],
-  )
-  const [values, setValues] = useState<Record<string, number>>(defaults)
+  const [inputs, setInputs] = useState<FarmInputs>(DEFAULT_INPUTS)
 
-  const score = computeScore(values)
-  const band = bandFor(score)
+  const assessment = useMemo(() => computeAssessment(inputs), [inputs])
+  const { score, band, vectors, levers, totalHa } = assessment
+  const deficits = vectors.filter((v) => v.deficit)
 
-  const emissions = Math.round(values.x1 * 12 + values.x3 * 6)
-  const exposure = Math.round((100 - (values.x2 + values.x4) / 2))
-  const horizon = Math.round(2030 + (values.x5 / 100) * 25)
-  const confidence = Math.round(40 + ((values.x2 + values.x4 + values.x5) / 3) * 0.6)
-
-  const dialRadius = 84
-  const dialCircumference = 2 * Math.PI * dialRadius
-  const dialOffset = dialCircumference - (score / 100) * dialCircumference
-
-  const bandStrokeColor =
-    band.key === 'critical' ? '#a14a3a' :
-    band.key === 'risk' ? '#b07a2a' :
-    band.key === 'sustainable' ? '#436843' :
-    '#345237'
+  const updateCrop = (uid: string, patch: Partial<CropRow>) => {
+    setInputs((prev) => ({
+      ...prev,
+      crops: prev.crops.map((c) => (c.uid === uid ? { ...c, ...patch } : c)),
+    }))
+  }
+  const addCrop = () =>
+    setInputs((prev) => ({ ...prev, crops: [...prev.crops, newRow()] }))
+  const removeCrop = (uid: string) =>
+    setInputs((prev) => ({ ...prev, crops: prev.crops.filter((c) => c.uid !== uid) }))
 
   return (
     <div className="app">
@@ -123,125 +204,232 @@ function App() {
         </div>
         <span className="pill">
           <span className="pill-dot" />
-          Sandbox scenario · live
+          UK 2040 nature-positive pathway
         </span>
       </header>
 
       <section className="hero">
-        <span className="eyebrow">Environmental impact assessment</span>
+        <span className="eyebrow">Business-model nature stress test</span>
         <h1>
-          Stress-test your strategy <em>against the world it will live in.</em>
+          Will this farm still <em>work in 2040?</em>
         </h1>
         <p>
-          ScenarioOne lets teams in regulated sectors model how today's decisions hold up tomorrow.
-          Adjust the levers below and watch the assessment respond in real time.
+          Enter your UK crop operation. We stress-test it against the UK's 2040
+          nature-positive pathway — derived from the 25 Year Environment Plan,
+          EIP 2023 and Kunming-Montreal targets — and return where the business
+          model breaks and how to close the gap.
         </p>
       </section>
 
       <div className="grid">
         <div className="card">
-          <h2>Scenario inputs</h2>
+          <h2>Farm profile</h2>
           <p className="card-sub">
-            Move the sliders to define your scenario. Each variable shifts the resilience signal on the right.
+            Describe the operation. Inputs feed the 2040 stress test on the right.
           </p>
 
-          <div className="sliders">
-            {VARIABLES.map((v) => {
-              const value = values[v.id]
-              const pct = ((value - v.min) / (v.max - v.min)) * 100
-              return (
-                <div className="slider" key={v.id}>
-                  <div className="slider-row">
-                    <label htmlFor={v.id} className="slider-label">
-                      {v.label}
-                      <span className="muted">— {v.hint}</span>
-                    </label>
-                    <span className="slider-value">{value}</span>
+          <div className="form">
+            <div className="field-pair">
+              <div className="field">
+                <label className="field-label" htmlFor="region">Region</label>
+                <select
+                  id="region"
+                  className="select"
+                  value={inputs.region}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, region: e.target.value as RegionKey })
+                  }
+                >
+                  {REGIONS.map((r) => (
+                    <option key={r.key} value={r.key}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="field">
+                <label className="field-label" htmlFor="soil">Soil type</label>
+                <select
+                  id="soil"
+                  className="select"
+                  value={inputs.soilType}
+                  onChange={(e) =>
+                    setInputs({ ...inputs, soilType: e.target.value as SoilTypeKey })
+                  }
+                >
+                  {SOIL_TYPES.map((s) => (
+                    <option key={s.key} value={s.key}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="field">
+              <div className="field-label-row">
+                <label className="field-label">Crop mix</label>
+                <span className="muted">{totalHa.toLocaleString()} ha total</span>
+              </div>
+              <div className="crop-list">
+                {inputs.crops.map((row) => (
+                  <div key={row.uid} className="crop-row">
+                    <select
+                      className="select select-crop"
+                      value={row.crop}
+                      onChange={(e) =>
+                        updateCrop(row.uid, { crop: e.target.value as CropKey })
+                      }
+                    >
+                      <option value="">Select crop…</option>
+                      {CROPS.map((c) => (
+                        <option key={c.key} value={c.key}>{c.label}</option>
+                      ))}
+                    </select>
+                    <div className="ha-wrap">
+                      <input
+                        className="ha-input"
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={row.hectares || ''}
+                        onChange={(e) =>
+                          updateCrop(row.uid, {
+                            hectares: Number(e.target.value) || 0,
+                          })
+                        }
+                        placeholder="0"
+                      />
+                      <span className="ha-suffix">ha</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="row-remove"
+                      onClick={() => removeCrop(row.uid)}
+                      aria-label="Remove crop"
+                    >
+                      ×
+                    </button>
                   </div>
-                  <input
-                    id={v.id}
-                    type="range"
-                    className="range"
-                    min={v.min}
-                    max={v.max}
-                    step={v.step}
-                    value={value}
-                    onChange={(e) =>
-                      setValues((prev) => ({ ...prev, [v.id]: Number(e.target.value) }))
-                    }
-                    style={{ ['--pct' as string]: `${pct}%` }}
-                  />
-                </div>
-              )
-            })}
+                ))}
+              </div>
+              <button type="button" className="add-row" onClick={addCrop}>
+                + Add crop
+              </button>
+            </div>
+
+            <div className="slider">
+              <div className="slider-row">
+                <label className="slider-label" htmlFor="irrigation">
+                  Irrigation share
+                  <span className="muted">— % of area irrigated</span>
+                </label>
+                <span className="slider-value">{inputs.irrigationPct}%</span>
+              </div>
+              <input
+                id="irrigation"
+                type="range"
+                className="range"
+                min={0}
+                max={100}
+                step={1}
+                value={inputs.irrigationPct}
+                onChange={(e) =>
+                  setInputs({ ...inputs, irrigationPct: Number(e.target.value) })
+                }
+                style={{ ['--pct' as string]: `${inputs.irrigationPct}%` }}
+              />
+            </div>
+
+            <div className="slider">
+              <div className="slider-row">
+                <label className="slider-label" htmlFor="fert">
+                  Fertiliser intensity
+                  <span className="muted">— synthetic N use</span>
+                </label>
+                <span className="slider-value">{inputs.fertiliserIntensity}</span>
+              </div>
+              <input
+                id="fert"
+                type="range"
+                className="range"
+                min={0}
+                max={100}
+                step={1}
+                value={inputs.fertiliserIntensity}
+                onChange={(e) =>
+                  setInputs({
+                    ...inputs,
+                    fertiliserIntensity: Number(e.target.value),
+                  })
+                }
+                style={{ ['--pct' as string]: `${inputs.fertiliserIntensity}%` }}
+              />
+            </div>
           </div>
 
-          <button className="reset" type="button" onClick={() => setValues(defaults)}>
+          <button
+            className="reset"
+            type="button"
+            onClick={() => setInputs(DEFAULT_INPUTS)}
+          >
             Reset to baseline
           </button>
         </div>
 
         <div className="card assessment">
-          <h2>Assessment</h2>
-          <p className="card-sub">A composite signal across the five levers you've set.</p>
+          <h2>2040 stress test</h2>
+          <p className="card-sub">
+            Composite viability score and breakdown across five nature-risk vectors.
+          </p>
+
+          <div className="spider-wrap">
+            <SpiderChart vectors={vectors} score={score} bandKey={band.key} />
+          </div>
 
           <div className="score-block">
-            <div className="dial">
-              <svg viewBox="0 0 200 200">
-                <circle cx="100" cy="100" r={dialRadius} className="dial-track" />
-                <circle
-                  cx="100"
-                  cy="100"
-                  r={dialRadius}
-                  className="dial-fill"
-                  style={{
-                    strokeDasharray: dialCircumference,
-                    strokeDashoffset: dialOffset,
-                    stroke: bandStrokeColor,
-                  }}
-                />
-              </svg>
-              <div className="dial-center">
-                <div className="dial-score">{score}</div>
-                <div className="dial-suffix">Resilience</div>
-              </div>
-            </div>
             <span className={`band ${band.className}`}>
               <span className="dot" />
               {band.label}
             </span>
           </div>
 
-          <div className="metrics">
-            <div className="metric">
-              <p className="metric-label">Implied emissions</p>
-              <p className="metric-value">
-                {emissions.toLocaleString()}<span className="metric-unit">tCO₂e</span>
-              </p>
+          {deficits.length > 0 && (
+            <div className="deficits">
+              {deficits.map((v) => (
+                <div className="deficit" key={v.key}>
+                  <span className="deficit-tag">{v.label}</span>
+                  <span className="deficit-text">{v.deficit}</span>
+                </div>
+              ))}
             </div>
-            <div className="metric">
-              <p className="metric-label">Transition exposure</p>
-              <p className="metric-value">
-                {exposure}<span className="metric-unit">/ 100</span>
-              </p>
-            </div>
-            <div className="metric">
-              <p className="metric-label">Robust through</p>
-              <p className="metric-value">{horizon}</p>
-            </div>
-            <div className="metric">
-              <p className="metric-label">Model confidence</p>
-              <p className="metric-value">
-                {confidence}<span className="metric-unit">%</span>
-              </p>
-            </div>
-          </div>
+          )}
 
           <p className="narrative">{band.narrative}</p>
+
+          {levers.length > 0 && (
+            <div className="levers">
+              <h3 className="levers-title">Transition plan — candidate levers</h3>
+              {levers.map((lever, i) => (
+                <div className="lever" key={i}>
+                  <div className="lever-head">
+                    <span className="lever-label">{lever.label}</span>
+                    <span className="lever-impact">
+                      {Object.entries(lever.impact).map(([k, v]) => (
+                        <span key={k} className={`impact-chip impact-${k}`}>
+                          {k} +{v}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                  <p className="lever-detail">{lever.detail}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      <footer className="footer">ScenarioOne · Scenario sandbox · Figures are illustrative</footer>
+      <footer className="footer">
+        ScenarioOne · UK 2040 nature-positive stress test · Coefficients illustrative
+      </footer>
     </div>
   )
 }

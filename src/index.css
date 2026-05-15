@@ -27,8 +27,8 @@
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-feature-settings: 'cv11', 'ss01';
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'ss01';
   color: var(--ink);
   background: var(--cream);
   -webkit-font-smoothing: antialiased;
