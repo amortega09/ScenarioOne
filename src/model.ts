@@ -44,6 +44,21 @@ export type CropKey =
 
 export type SoilTypeKey = 'loam' | 'clay' | 'chalky' | 'sandy' | 'peaty'
 
+export type BusinessModelKey =
+  | 'high_input_commodity'
+  | 'regenerative'
+  | 'contract_grower'
+  | 'diversified'
+
+type BusinessModel = { key: BusinessModelKey; label: string }
+
+export const BUSINESS_MODELS: BusinessModel[] = [
+  { key: 'high_input_commodity', label: 'High-input commodity' },
+  { key: 'regenerative',         label: 'Regenerative' },
+  { key: 'contract_grower',      label: 'Contract grower' },
+  { key: 'diversified',          label: 'Diversified' },
+]
+
 type Region = {
   key: RegionKey
   label: string
@@ -118,6 +133,8 @@ export type FarmInputs = {
   irrigationPct: number       // 0-100, % of area irrigated
   fertiliserIntensity: number // 0-100, slider where 65 ≈ UK average
   soilType: SoilTypeKey
+  businessModelType: BusinessModelKey
+  subsidyDependence: number   // 0-100, % of revenue from subsidies
 }
 
 type VectorKey = 'land' | 'water' | 'soil' | 'biodiv' | 'supply'
@@ -214,9 +231,25 @@ function bandFor(score: number): Band {
   }
 }
 
+// Per-business-model loosening of vector thresholds. Regenerative gets a 20% wider
+// N envelope and 15% wider freshwater envelope to reflect cover-cropping + reduced
+// blue abstraction in that model. Other models keep baseline thresholds.
+function thresholdsFor(bm: BusinessModelKey) {
+  if (bm === 'regenerative') {
+    return {
+      freshwater_m3_ha: T.freshwater_m3_ha * 1.15,
+      n_kg_ha: T.n_kg_ha * 1.2,
+      emissions: T.emissions,
+      hectarage: T.hectarage,
+    }
+  }
+  return { ...T }
+}
+
 export function computeAssessment(input: FarmInputs): Assessment {
   const region = REGIONS.find((r) => r.key === input.region)!
   const soil = SOIL_TYPES.find((s) => s.key === input.soilType)!
+  const Tx = thresholdsFor(input.businessModelType)
   const filled = input.crops
     .map((c) => ({ row: c, crop: CROPS.find((cc) => cc.key === c.crop) }))
     .filter((c): c is { row: CropRow; crop: Crop } => !!c.crop && c.row.hectares > 0)
@@ -277,19 +310,19 @@ export function computeAssessment(input: FarmInputs): Assessment {
   // === Vector scores: each starts at 100 and loses 50 when at threshold ===
   // Catchment stress modifier applies at the score layer, not the absolute load.
   const waterScore = clamp(
-    100 - ((water_per_ha * region.waterMod) / T.freshwater_m3_ha) * 50,
+    100 - ((water_per_ha * region.waterMod) / Tx.freshwater_m3_ha) * 50,
     0,
     100,
   )
 
   // Supply = synthetic-N exposure. Heavier penalty than soil because of input-restriction risk.
-  const supplyScore = clamp(100 - (n_per_ha / T.n_kg_ha) * 60, 0, 100)
+  const supplyScore = clamp(100 - (n_per_ha / Tx.n_kg_ha) * 60, 0, 100)
 
   // Soil = tillage + N intensity, modulated by soil type (peaty most fragile).
   const soilScore = clamp(
     100 -
       (tillage_per_ha * soil.mod * 60 +
-        (n_per_ha / T.n_kg_ha) * 30) +
+        (n_per_ha / Tx.n_kg_ha) * 30) +
       diversityBonus * 0.3,
     0,
     100,
@@ -304,13 +337,13 @@ export function computeAssessment(input: FarmInputs): Assessment {
 
   // Land = farm size × regional pressure, saturating at T.hectarage.
   const landScore = clamp(
-    100 - (totalHa / T.hectarage) * 50 * region.landMod,
+    100 - (totalHa / Tx.hectarage) * 50 * region.landMod,
     0,
     100,
   )
 
   // === Emissions optionally informs supply (transition-risk signal) ===
-  const emissionsOver = emissions_per_ha > T.emissions
+  const emissionsOver = emissions_per_ha > Tx.emissions
 
   const vectors: VectorResult[] = [
     {
@@ -319,7 +352,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(landScore),
       deficit:
         landScore < 60
-          ? `${Math.round(totalHa)} ha exceeds the regional 2040 land-pressure envelope (${Math.round(T.hectarage / region.landMod)} ha threshold).`
+          ? `${Math.round(totalHa)} ha exceeds the regional 2040 land-pressure envelope (${Math.round(Tx.hectarage / region.landMod)} ha threshold).`
           : null,
     },
     {
@@ -328,7 +361,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(waterScore),
       deficit:
         waterScore < 60
-          ? `Freshwater load of ${Math.round(water_per_ha).toLocaleString('en-GB')} m³/ha (blue + grey) — ${Math.round((water_per_ha * region.waterMod / T.freshwater_m3_ha - 1) * 100)}% above the 2040 catchment & pollution ceiling.`
+          ? `Freshwater load of ${Math.round(water_per_ha).toLocaleString('en-GB')} m³/ha (blue + grey) — ${Math.round((water_per_ha * region.waterMod / Tx.freshwater_m3_ha - 1) * 100)}% above the 2040 catchment & pollution ceiling.`
           : null,
     },
     {
@@ -355,7 +388,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(supplyScore),
       deficit:
         supplyScore < 60
-          ? `Synthetic-N at ${Math.round(n_per_ha)} kg/ha — above the 2040 input-restriction envelope (${T.n_kg_ha} kg/ha).${emissionsOver ? ` Field emissions ${emissions_per_ha.toFixed(1)} tCO₂e/ha breach the 4.0 ceiling.` : ''}`
+          ? `Synthetic-N at ${Math.round(n_per_ha)} kg/ha — above the 2040 input-restriction envelope (${Math.round(Tx.n_kg_ha)} kg/ha).${emissionsOver ? ` Field emissions ${emissions_per_ha.toFixed(1)} tCO₂e/ha breach the 4.0 ceiling.` : ''}`
           : null,
     },
   ]
@@ -418,5 +451,172 @@ export function computeAssessment(input: FarmInputs): Assessment {
       emissions_tco2e: emissions_kg_co2e / 1000,
       n_applied_t: n_applied_kg / 1000,
     },
+  }
+}
+
+// ============================================================================
+// Business-model viability layer (financial stress-test on top of nature scores)
+// ============================================================================
+
+const CROP_PRICE_PER_T: Partial<Record<CropKey, number>> = {
+  wheat: 900,
+  osr: 950,
+  barley: 750,
+}
+const DEFAULT_CROP_PRICE_PER_T = 700
+
+export type VerdictKey = 'structural' | 'transformation' | 'viable'
+
+export type Verdict = {
+  key: VerdictKey
+  label: string
+  className: string
+}
+
+export type LendingFlag = {
+  key: 'natwest_lloyds' | 'covenant' | 'eib_ukib'
+  text: string
+}
+
+export type BusinessViability = {
+  cropRevenue: number
+  subsidyIncome: number
+  totalRevenue: number
+  retentionRate: number
+  subsidyAtRisk: number
+  nCostShock: number
+  waterRevenueLoss: number
+  totalImpact: number
+  netMarginImpactPerHa: number
+  impactAsPercentOfRevenue: number
+  verdict: Verdict
+  flags: LendingFlag[]
+}
+
+const WATER_STRESSED_REGIONS: ReadonlyArray<RegionKey> = [
+  'east_england',
+  'east_midlands',
+  'south_east',
+]
+
+function verdictFor(
+  pct: number,
+  bm: BusinessModelKey,
+): Verdict {
+  // Diversified operations absorb more revenue shock before they're structurally
+  // at risk — the 20% boundary shifts to 25%.
+  const structuralAt = bm === 'diversified' ? 0.25 : 0.2
+  if (pct >= structuralAt) {
+    return { key: 'structural', label: 'Structural risk', className: 'verdict-critical' }
+  }
+  if (pct >= 0.1) {
+    return { key: 'transformation', label: 'Needs transformation', className: 'verdict-risk' }
+  }
+  return { key: 'viable', label: 'Viable with adaptation', className: 'verdict-future' }
+}
+
+function retentionFor(compositeScore: number, bm: BusinessModelKey): number {
+  // Baseline ELM/SFI retention by composite spider score.
+  let r: number
+  if (compositeScore > 75) r = 1.0
+  else if (compositeScore >= 50) r = 0.6
+  else r = 0.2
+  // Contract growers carry less direct entitlement and lose a tier of retention.
+  if (bm === 'contract_grower') {
+    if (r === 1.0) r = 0.6
+    else if (r === 0.6) r = 0.2
+    else r = 0.0
+  }
+  return r
+}
+
+export function computeBusinessViability(
+  input: FarmInputs,
+  assessment: Assessment,
+): BusinessViability {
+  const { totalHa, vectors, score: compositeScore } = assessment
+  const nScore = vectors.find((v) => v.key === 'supply')!.score
+  const waterScore = vectors.find((v) => v.key === 'water')!.score
+
+  // === Revenue ===
+  let cropRevenue = 0
+  for (const row of input.crops) {
+    if (!row.crop || row.hectares <= 0) continue
+    const crop = CROPS.find((c) => c.key === row.crop)
+    if (!crop) continue
+    const price = CROP_PRICE_PER_T[row.crop] ?? DEFAULT_CROP_PRICE_PER_T
+    cropRevenue += row.hectares * crop.yield_t_ha * price
+  }
+
+  // === Subsidy ===
+  // Solve subsidyIncome / (cropRevenue + subsidyIncome) = sd, clamped to avoid /0 at 100%.
+  const sd = clamp(input.subsidyDependence, 0, 95) / 100
+  const rawSubsidy = sd > 0 ? (cropRevenue / (1 - sd)) * sd : 0
+  // £120/ha is a sanity floor against SFI base rates so very small crop revenue still
+  // produces a plausible subsidy line.
+  const subsidyFloor = sd > 0 ? 120 * totalHa : 0
+  const subsidyIncome = Math.max(rawSubsidy, subsidyFloor)
+  const totalRevenue = cropRevenue + subsidyIncome
+
+  // === Subsidy retention vs 2040 conditionality ===
+  const retentionRate = retentionFor(compositeScore, input.businessModelType)
+  const subsidyAtRisk = subsidyIncome * (1 - retentionRate)
+
+  // === N price shock (only fires when Supply vector is amber or rust) ===
+  // Per-ha N rate is derivable from total N applied / total area; reuses model output.
+  const n_kg_per_ha = totalHa > 0 ? (assessment.totals.n_applied_t * 1000) / totalHa : 0
+  const N_PRICE_DELTA_PER_T = 380 - 280 // £/t — 2040 carbon-priced nitrogen uplift
+  const nCostShock =
+    nScore < 75 ? totalHa * n_kg_per_ha * 0.001 * N_PRICE_DELTA_PER_T : 0
+
+  // === Water revenue loss (abstraction tightening in water-stressed regions) ===
+  const irrigatedHa = totalHa * (input.irrigationPct / 100)
+  const waterRegion = WATER_STRESSED_REGIONS.includes(input.region)
+  const waterRevenueLoss =
+    waterScore < 75 && waterRegion ? irrigatedHa * 0.4 * 150 : 0
+
+  // === Roll-up ===
+  const totalImpact = subsidyAtRisk + nCostShock + waterRevenueLoss
+  const netMarginImpactPerHa = totalHa > 0 ? totalImpact / totalHa : 0
+  const impactAsPercentOfRevenue =
+    totalRevenue > 0 ? totalImpact / totalRevenue : 0
+
+  // === Lending flags ===
+  const flags: LendingFlag[] = []
+  if (nScore < 50 && input.subsidyDependence > 50) {
+    flags.push({
+      key: 'natwest_lloyds',
+      text:
+        'High-input subsidy-dependent profile is outside NatWest/Lloyds sustainable agriculture lending criteria.',
+    })
+  }
+  if (waterScore < 50 && waterRegion) {
+    flags.push({
+      key: 'covenant',
+      text:
+        'Abstraction-dependent operations face covenant risk on green loans.',
+    })
+  }
+  if (input.businessModelType === 'high_input_commodity' && compositeScore < 50) {
+    flags.push({
+      key: 'eib_ukib',
+      text:
+        'This model profile is increasingly excluded from EIB and UKIB nature-linked agricultural finance.',
+    })
+  }
+
+  return {
+    cropRevenue,
+    subsidyIncome,
+    totalRevenue,
+    retentionRate,
+    subsidyAtRisk,
+    nCostShock,
+    waterRevenueLoss,
+    totalImpact,
+    netMarginImpactPerHa,
+    impactAsPercentOfRevenue,
+    verdict: verdictFor(impactAsPercentOfRevenue, input.businessModelType),
+    flags,
   }
 }

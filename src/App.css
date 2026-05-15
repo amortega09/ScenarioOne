@@ -418,8 +418,70 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
   flex: 1;
+}
+
+.form-group {
+  border: 1px solid rgba(67, 104, 67, 0.1);
+  border-radius: var(--radius-md);
+  background: rgba(244, 247, 242, 0.35);
+  overflow: hidden;
+}
+
+.form-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--moss-700);
+  font-weight: 600;
+  transition: background 0.18s var(--ease);
+}
+
+.form-group-head::-webkit-details-marker {
+  display: none;
+}
+
+.form-group-head:hover {
+  background: rgba(67, 104, 67, 0.05);
+}
+
+.form-group-title {
+  flex: 1;
+}
+
+.form-group-meta {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--mist);
+  font-weight: 400;
+}
+
+.form-group-chevron {
+  color: var(--moss-600);
+  transition: transform 0.2s var(--ease);
+  flex-shrink: 0;
+}
+
+.form-group[open] .form-group-chevron {
+  transform: rotate(180deg);
+}
+
+.form-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px 14px 16px;
+  border-top: 1px solid rgba(67, 104, 67, 0.08);
+  background: #ffffff;
 }
 
 .field {
@@ -1088,4 +1150,222 @@
   letter-spacing: 0.3px;
   margin-top: 4px;
   flex-shrink: 0;
+}
+/* Stress Test Analysis — Nature / Financial sections + tabs */
+.analysis-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 8px 0 16px;
+  padding: 4px;
+  background: rgba(67, 104, 67, 0.06);
+  border-radius: 999px;
+}
+
+.analysis-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  color: var(--moss-700);
+  cursor: pointer;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.analysis-tab:hover {
+  color: var(--moss-800);
+}
+
+.analysis-tab-active {
+  background: #ffffff;
+  color: var(--moss-900);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.analysis-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.analysis-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.assessment-foot {
+  margin-top: auto;
+  padding-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.assumptions-btn {
+  background: transparent;
+  border: none;
+  color: var(--moss-600);
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.2s var(--ease);
+}
+
+.assumptions-btn:hover {
+  color: var(--moss-800);
+}
+
+.modal-section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--moss-600);
+  font-weight: 600;
+  margin: 18px 0 8px;
+}
+
+.modal-section-title:first-of-type {
+  margin-top: 8px;
+}
+
+.modal-summary-financial {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.modal-stat-value-sm {
+  font-size: 22px !important;
+}
+
+.modal-lift-down {
+  color: var(--moss-700);
+}
+
+.assumptions-list {
+  margin: 0 0 4px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--mist);
+}
+
+.assumptions-list li {
+  margin-bottom: 4px;
+}
+
+.assumptions-list b {
+  color: var(--moss-800);
+  font-weight: 600;
+}
+
+.verdict-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.verdict-pill .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.verdict-critical {
+  color: #a14a3a;
+  background: rgba(161, 74, 58, 0.1);
+}
+
+.verdict-risk {
+  color: #b07a2a;
+  background: rgba(176, 122, 42, 0.12);
+}
+
+.verdict-future {
+  color: var(--moss-700);
+  background: rgba(52, 82, 55, 0.14);
+}
+
+.viability-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0;
+  margin: 14px 0 18px;
+  border-top: 1px solid rgba(67, 104, 67, 0.08);
+}
+
+.viability-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 18px 14px 0;
+  border-bottom: 1px solid rgba(67, 104, 67, 0.08);
+}
+
+.viability-row-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--mist);
+}
+
+.viability-row-value {
+  font-family: 'Instrument Serif', 'Fraunces', serif;
+  font-size: 26px;
+  color: var(--moss-900);
+  letter-spacing: -0.4px;
+  font-feature-settings: 'tnum';
+}
+
+.viability-flags {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.flag {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.flag-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.flag-warn {
+  color: #a14a3a;
+  background: rgba(161, 74, 58, 0.06);
+  border: 1px solid rgba(161, 74, 58, 0.18);
+}
+
+.flag-clear {
+  color: var(--moss-700);
+  background: rgba(67, 104, 67, 0.06);
+  border: 1px solid rgba(67, 104, 67, 0.16);
 }

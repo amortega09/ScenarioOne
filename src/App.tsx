@@ -4,12 +4,15 @@ import {
   REGIONS,
   CROPS,
   SOIL_TYPES,
+  BUSINESS_MODELS,
   computeAssessment,
+  computeBusinessViability,
   type FarmInputs,
   type CropRow,
   type CropKey,
   type RegionKey,
   type SoilTypeKey,
+  type BusinessModelKey,
   type VectorResult,
   type Band,
 } from './model'
@@ -24,6 +27,8 @@ const DEFAULT_INPUTS: FarmInputs = {
   irrigationPct: 15,
   fertiliserIntensity: 65,
   soilType: 'loam',
+  businessModelType: 'high_input_commodity',
+  subsidyDependence: 40,
 }
 
 function newRow(): CropRow {
@@ -163,11 +168,18 @@ function App() {
   const { score, band, vectors, levers, totalHa, totals } = assessment
   const deficits = vectors.filter((v) => v.deficit)
 
+  const viability = useMemo(
+    () => computeBusinessViability(inputs, assessment),
+    [inputs, assessment],
+  )
+
   const fmt = (n: number, digits = 0) =>
     n.toLocaleString('en-GB', { maximumFractionDigits: digits })
 
   const [planOpen, setPlanOpen] = useState(false)
   const [riskOpen, setRiskOpen] = useState(false)
+  const [assumptionsOpen, setAssumptionsOpen] = useState(false)
+  const [analysisView, setAnalysisView] = useState<'nature' | 'financial'>('nature')
 
   useEffect(() => {
     if (!planOpen) return
@@ -197,6 +209,20 @@ function App() {
     }
   }, [riskOpen])
 
+  useEffect(() => {
+    if (!assumptionsOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAssumptionsOpen(false)
+    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [assumptionsOpen])
+
   const projected = useMemo(() => {
     const map: Record<string, number> = {}
     for (const v of vectors) map[v.key] = v.score
@@ -205,10 +231,18 @@ function App() {
         map[k] = Math.min(100, (map[k] ?? 0) + (delta ?? 0))
       }
     }
-    const arr = Object.values(map)
+    const projectedVectors = vectors.map((v) => ({ ...v, score: map[v.key] ?? v.score }))
+    const arr = projectedVectors.map((v) => v.score)
     const avg = arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : 0
-    return { score: Math.round(avg), lift: Math.round(avg - score) }
-  }, [vectors, levers, score])
+    const liftedScore = Math.round(avg)
+    const projectedAssessment = { ...assessment, score: liftedScore, vectors: projectedVectors }
+    const projectedViability = computeBusinessViability(inputs, projectedAssessment)
+    return {
+      score: liftedScore,
+      lift: Math.round(avg - score),
+      viability: projectedViability,
+    }
+  }, [vectors, levers, score, assessment, inputs])
 
   const updateCrop = (uid: string, patch: Partial<CropRow>) => {
     setInputs((prev) => ({
@@ -247,140 +281,222 @@ function App() {
           </p>
 
           <div className="form">
-            <div className="field-pair">
-              <div className="field">
-                <label className="field-label" htmlFor="region">Region</label>
-                <select
-                  id="region"
-                  className="select"
-                  value={inputs.region}
-                  onChange={(e) =>
-                    setInputs({ ...inputs, region: e.target.value as RegionKey })
-                  }
-                >
-                  {REGIONS.map((r) => (
-                    <option key={r.key} value={r.key}>{r.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="field">
-                <label className="field-label" htmlFor="soil">Soil type</label>
-                <select
-                  id="soil"
-                  className="select"
-                  value={inputs.soilType}
-                  onChange={(e) =>
-                    setInputs({ ...inputs, soilType: e.target.value as SoilTypeKey })
-                  }
-                >
-                  {SOIL_TYPES.map((s) => (
-                    <option key={s.key} value={s.key}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="field">
-              <div className="field-label-row">
-                <label className="field-label">Crop mix</label>
-                <span className="muted">{totalHa.toLocaleString()} ha total</span>
-              </div>
-              <div className="crop-list">
-                {inputs.crops.map((row) => (
-                  <div key={row.uid} className="crop-row">
+            <details className="form-group" open>
+              <summary className="form-group-head">
+                <span className="form-group-title">Geography</span>
+                <svg className="form-group-chevron" viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+                  <path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="form-group-body">
+                <div className="field-pair">
+                  <div className="field">
+                    <label className="field-label" htmlFor="region">Region</label>
                     <select
-                      className="select select-crop"
-                      value={row.crop}
+                      id="region"
+                      className="select"
+                      value={inputs.region}
                       onChange={(e) =>
-                        updateCrop(row.uid, { crop: e.target.value as CropKey })
+                        setInputs({ ...inputs, region: e.target.value as RegionKey })
                       }
                     >
-                      <option value="">Select crop…</option>
-                      {CROPS.map((c) => (
-                        <option key={c.key} value={c.key}>{c.label}</option>
+                      {REGIONS.map((r) => (
+                        <option key={r.key} value={r.key}>{r.label}</option>
                       ))}
                     </select>
-                    <div className="ha-wrap">
-                      <input
-                        className="ha-input"
-                        type="number"
-                        min={0}
-                        step={1}
-                        value={row.hectares || ''}
-                        onChange={(e) =>
-                          updateCrop(row.uid, {
-                            hectares: Number(e.target.value) || 0,
-                          })
-                        }
-                        placeholder="0"
-                      />
-                      <span className="ha-suffix">ha</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="row-remove"
-                      onClick={() => removeCrop(row.uid)}
-                      aria-label="Remove crop"
-                    >
-                      ×
-                    </button>
                   </div>
-                ))}
-              </div>
-              <button type="button" className="add-row" onClick={addCrop}>
-                + Add crop
-              </button>
-            </div>
 
-            <div className="slider">
-              <div className="slider-row">
-                <label className="slider-label" htmlFor="irrigation">
-                  Irrigation share
-                  <span className="muted">— % of area irrigated</span>
-                </label>
-                <span className="slider-value">{inputs.irrigationPct}%</span>
+                  <div className="field">
+                    <label className="field-label" htmlFor="soil">Soil type</label>
+                    <select
+                      id="soil"
+                      className="select"
+                      value={inputs.soilType}
+                      onChange={(e) =>
+                        setInputs({ ...inputs, soilType: e.target.value as SoilTypeKey })
+                      }
+                    >
+                      {SOIL_TYPES.map((s) => (
+                        <option key={s.key} value={s.key}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
+            </details>
+
+            <details className="form-group" open>
+              <summary className="form-group-head">
+                <span className="form-group-title">Crops</span>
+                <span className="form-group-meta">{totalHa.toLocaleString()} ha total</span>
+                <svg className="form-group-chevron" viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+                  <path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="form-group-body">
+                <div className="field">
+                  <div className="crop-list">
+                    {inputs.crops.map((row) => (
+                      <div key={row.uid} className="crop-row">
+                        <select
+                          className="select select-crop"
+                          value={row.crop}
+                          onChange={(e) =>
+                            updateCrop(row.uid, { crop: e.target.value as CropKey })
+                          }
+                        >
+                          <option value="">Select crop…</option>
+                          {CROPS.map((c) => (
+                            <option key={c.key} value={c.key}>{c.label}</option>
+                          ))}
+                        </select>
+                        <div className="ha-wrap">
+                          <input
+                            className="ha-input"
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={row.hectares || ''}
+                            onChange={(e) =>
+                              updateCrop(row.uid, {
+                                hectares: Number(e.target.value) || 0,
+                              })
+                            }
+                            placeholder="0"
+                          />
+                          <span className="ha-suffix">ha</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="row-remove"
+                          onClick={() => removeCrop(row.uid)}
+                          aria-label="Remove crop"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" className="add-row" onClick={addCrop}>
+                    + Add crop
+                  </button>
+                </div>
+              </div>
+            </details>
+
+            <details className="form-group" open>
+              <summary className="form-group-head">
+                <span className="form-group-title">Practices</span>
+                <svg className="form-group-chevron" viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+                  <path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="form-group-body">
+                <div className="slider">
+                  <div className="slider-row">
+                    <label className="slider-label" htmlFor="irrigation">
+                      Irrigation share
+                      <span className="muted">— % of area irrigated</span>
+                    </label>
+                    <span className="slider-value">{inputs.irrigationPct}%</span>
+                  </div>
+                  <input
+                    id="irrigation"
+                    type="range"
+                    className="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={inputs.irrigationPct}
+                    onChange={(e) =>
+                      setInputs({ ...inputs, irrigationPct: Number(e.target.value) })
+                    }
+                    style={{ ['--pct' as string]: `${inputs.irrigationPct}%` }}
+                  />
+                </div>
+
+                <div className="slider">
+                  <div className="slider-row">
+                    <label className="slider-label" htmlFor="fert">
+                      Fertiliser intensity
+                      <span className="muted">— synthetic N use</span>
+                    </label>
+                    <span className="slider-value">{inputs.fertiliserIntensity}</span>
+                  </div>
+                  <input
+                    id="fert"
+                    type="range"
+                    className="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={inputs.fertiliserIntensity}
+                    onChange={(e) =>
+                      setInputs({
+                        ...inputs,
+                        fertiliserIntensity: Number(e.target.value),
+                      })
+                    }
+                    style={{ ['--pct' as string]: `${inputs.fertiliserIntensity}%` }}
+                  />
+                </div>
+              </div>
+            </details>
+
+            <details className="form-group" open>
+              <summary className="form-group-head">
+                <span className="form-group-title">Financial</span>
+                <svg className="form-group-chevron" viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+                  <path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="form-group-body">
+                <div className="field">
+                  <label className="field-label" htmlFor="business-model">Business model</label>
+                  <select
+                    id="business-model"
+                    className="select"
+                    value={inputs.businessModelType}
+                    onChange={(e) =>
+                      setInputs({
+                        ...inputs,
+                        businessModelType: e.target.value as BusinessModelKey,
+                      })
+                    }
+                  >
+                    {BUSINESS_MODELS.map((b) => (
+                      <option key={b.key} value={b.key}>{b.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="slider">
+                  <div className="slider-row">
+                    <label className="slider-label" htmlFor="subsidy">
+                      Subsidy dependence
+                      <span className="muted">— % revenue from subsidies</span>
+                    </label>
+                    <span className="slider-value">{inputs.subsidyDependence}%</span>
+                  </div>
               <input
-                id="irrigation"
+                id="subsidy"
                 type="range"
                 className="range"
                 min={0}
                 max={100}
                 step={1}
-                value={inputs.irrigationPct}
-                onChange={(e) =>
-                  setInputs({ ...inputs, irrigationPct: Number(e.target.value) })
-                }
-                style={{ ['--pct' as string]: `${inputs.irrigationPct}%` }}
-              />
-            </div>
-
-            <div className="slider">
-              <div className="slider-row">
-                <label className="slider-label" htmlFor="fert">
-                  Fertiliser intensity
-                  <span className="muted">— synthetic N use</span>
-                </label>
-                <span className="slider-value">{inputs.fertiliserIntensity}</span>
-              </div>
-              <input
-                id="fert"
-                type="range"
-                className="range"
-                min={0}
-                max={100}
-                step={1}
-                value={inputs.fertiliserIntensity}
+                value={inputs.subsidyDependence}
                 onChange={(e) =>
                   setInputs({
                     ...inputs,
-                    fertiliserIntensity: Number(e.target.value),
+                    subsidyDependence: Number(e.target.value),
                   })
                 }
-                style={{ ['--pct' as string]: `${inputs.fertiliserIntensity}%` }}
+                style={{ ['--pct' as string]: `${inputs.subsidyDependence}%` }}
               />
-            </div>
+                </div>
+              </div>
+            </details>
           </div>
 
           <button
@@ -394,9 +510,9 @@ function App() {
 
         <div className="card assessment">
           <div className="assessment-head">
-            <h2>2040 stress test</h2>
+            <h2>Stress Test Analysis</h2>
             <div className="assessment-btns">
-              {deficits.length > 0 && (
+              {(deficits.length > 0 || viability.flags.length > 0 || viability.verdict.key !== 'viable') && (
                 <button
                   type="button"
                   className="assess-btn assess-btn-risk"
@@ -404,7 +520,7 @@ function App() {
                   id="at-risk-btn"
                 >
                   At Risk
-                  <span className="assess-btn-count">{deficits.length}</span>
+                  <span className="assess-btn-count">{deficits.length + viability.flags.length}</span>
                 </button>
               )}
               {levers.length > 0 && (
@@ -419,39 +535,96 @@ function App() {
               )}
             </div>
           </div>
-          <p className="card-sub">
-            Composite viability score and breakdown across five nature-risk vectors.
-          </p>
 
-          <div className="totals">
-            <div className="totals-tile">
-              <p className="totals-label">Production</p>
-              <p className="totals-value">{fmt(totals.production_t)}<span className="totals-unit"> t/yr</span></p>
-            </div>
-            <div className="totals-tile">
-              <p className="totals-label">Freshwater load</p>
-              <p className="totals-value">{fmt(totals.freshwater_m3 / 1000)}<span className="totals-unit"> ML/yr</span></p>
-            </div>
-            <div className="totals-tile">
-              <p className="totals-label">Field emissions</p>
-              <p className="totals-value">{fmt(totals.emissions_tco2e)}<span className="totals-unit"> tCO₂e/yr</span></p>
-            </div>
-            <div className="totals-tile">
-              <p className="totals-label">Synthetic N</p>
-              <p className="totals-value">{fmt(totals.n_applied_t, 1)}<span className="totals-unit"> t N/yr</span></p>
-            </div>
+          <div className="analysis-tabs" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={analysisView === 'nature'}
+              className={`analysis-tab ${analysisView === 'nature' ? 'analysis-tab-active' : ''}`}
+              onClick={() => setAnalysisView('nature')}
+            >
+              Nature
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={analysisView === 'financial'}
+              className={`analysis-tab ${analysisView === 'financial' ? 'analysis-tab-active' : ''}`}
+              onClick={() => setAnalysisView('financial')}
+            >
+              Financial
+            </button>
           </div>
 
-          <div className="spider-wrap">
-            <SpiderChart vectors={vectors} score={score} bandKey={band.key} />
+          {analysisView === 'nature' && (
+            <div className="analysis-section">
+              <div className="totals">
+                <div className="totals-tile">
+                  <p className="totals-label">Production</p>
+                  <p className="totals-value">{fmt(totals.production_t)}<span className="totals-unit"> t/yr</span></p>
+                </div>
+                <div className="totals-tile">
+                  <p className="totals-label">Freshwater load</p>
+                  <p className="totals-value">{fmt(totals.freshwater_m3 / 1000)}<span className="totals-unit"> ML/yr</span></p>
+                </div>
+                <div className="totals-tile">
+                  <p className="totals-label">Field emissions</p>
+                  <p className="totals-value">{fmt(totals.emissions_tco2e)}<span className="totals-unit"> tCO₂e/yr</span></p>
+                </div>
+                <div className="totals-tile">
+                  <p className="totals-label">Synthetic N</p>
+                  <p className="totals-value">{fmt(totals.n_applied_t, 1)}<span className="totals-unit"> t N/yr</span></p>
+                </div>
+              </div>
+
+              <div className="spider-wrap">
+                <SpiderChart vectors={vectors} score={score} bandKey={band.key} />
+              </div>
+            </div>
+          )}
+
+          {analysisView === 'financial' && (
+            <div className="analysis-section">
+              <div className="analysis-section-head">
+                <span className={`verdict-pill ${viability.verdict.className}`}>
+                  <span className="dot" />
+                  {viability.verdict.label}
+                </span>
+              </div>
+
+              <div className="viability-rows">
+                <div className="viability-row">
+                  <span className="viability-row-label">Subsidy at risk</span>
+                  <span className="viability-row-value">£{fmt(viability.subsidyAtRisk)}<span className="totals-unit">/yr</span></span>
+                </div>
+                <div className="viability-row">
+                  <span className="viability-row-label">Input cost shock</span>
+                  <span className="viability-row-value">£{fmt(viability.nCostShock)}<span className="totals-unit">/yr</span></span>
+                </div>
+                <div className="viability-row">
+                  <span className="viability-row-label">Water revenue loss</span>
+                  <span className="viability-row-value">£{fmt(viability.waterRevenueLoss)}<span className="totals-unit">/yr</span></span>
+                </div>
+                <div className="viability-row">
+                  <span className="viability-row-label">Net margin impact</span>
+                  <span className="viability-row-value">£{fmt(viability.netMarginImpactPerHa)}<span className="totals-unit">/ha · {(viability.impactAsPercentOfRevenue * 100).toFixed(1)}% rev</span></span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="assessment-foot">
+            <button
+              type="button"
+              className="assumptions-btn"
+              onClick={() => setAssumptionsOpen(true)}
+            >
+              View assumptions
+            </button>
           </div>
-
-
-
         </div>
       </div>
-
-
 
       {planOpen && (
         <div
@@ -496,6 +669,23 @@ function App() {
                 <span className="modal-stat-value modal-stat-value-strong">
                   {projected.score}
                   <span className="modal-lift">+{projected.lift}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="modal-summary modal-summary-financial">
+              <div className="modal-stat">
+                <span className="modal-stat-label">Current revenue exposure</span>
+                <span className="modal-stat-value modal-stat-value-sm">{(viability.impactAsPercentOfRevenue * 100).toFixed(1)}%</span>
+              </div>
+              <svg width="22" height="14" viewBox="0 0 22 14" className="modal-arrow" aria-hidden>
+                <path d="M2 7h17m0 0l-5-5m5 5l-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <div className="modal-stat">
+                <span className="modal-stat-label">After levers</span>
+                <span className="modal-stat-value modal-stat-value-strong modal-stat-value-sm">
+                  {(projected.viability.impactAsPercentOfRevenue * 100).toFixed(1)}%
+                  <span className="modal-lift modal-lift-down">−£{fmt(viability.totalImpact - projected.viability.totalImpact)}/yr</span>
                 </span>
               </div>
             </div>
@@ -552,7 +742,7 @@ function App() {
           >
             <header className="modal-head">
               <div>
-                <span className="modal-eyebrow">Nature risk vectors</span>
+                <span className="modal-eyebrow">Risk profile</span>
                 <h2 id="risk-title" className="modal-title">
                   At <em>Risk</em>
                 </h2>
@@ -567,27 +757,153 @@ function App() {
               </button>
             </header>
             <p className="modal-intro">
-              Vectors below the viability threshold under the UK 2040 nature-positive pathway.
+              Vectors below threshold and financial exposure under the UK 2040 nature-positive pathway.
             </p>
-            <div className="modal-levers">
-              {deficits.map((v) => (
-                <div className="lever" key={v.key}>
-                  <div className="lever-head">
-                    <span className="lever-label">{v.label}</span>
-                    <span className={`band ${band.className}`} style={{fontSize: '12px', padding: '4px 10px'}}>
-                      <span className="dot" />
-                      Score: {v.score}
-                    </span>
-                  </div>
-                  <p className="lever-detail">{v.deficit}</p>
+
+            {deficits.length > 0 && (
+              <>
+                <h3 className="modal-section-title">Nature vectors</h3>
+                <div className="modal-levers">
+                  {deficits.map((v) => (
+                    <div className="lever" key={v.key}>
+                      <div className="lever-head">
+                        <span className="lever-label">{v.label}</span>
+                        <span className={`band ${band.className}`} style={{fontSize: '12px', padding: '4px 10px'}}>
+                          <span className="dot" />
+                          Score: {v.score}
+                        </span>
+                      </div>
+                      <p className="lever-detail">{v.deficit}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
+
+            {(viability.flags.length > 0 || viability.verdict.key !== 'viable') && (
+              <>
+                <h3 className="modal-section-title">Financial exposure</h3>
+                <div className="modal-levers">
+                  {viability.verdict.key !== 'viable' && (
+                    <div className="lever" key="verdict">
+                      <div className="lever-head">
+                        <span className="lever-label">Business model verdict</span>
+                        <span className={`verdict-pill ${viability.verdict.className}`} style={{fontSize: '12px', padding: '4px 10px'}}>
+                          <span className="dot" />
+                          {viability.verdict.label}
+                        </span>
+                      </div>
+                      <p className="lever-detail">
+                        Total annual exposure £{fmt(viability.totalImpact)} — {(viability.impactAsPercentOfRevenue * 100).toFixed(1)}% of revenue.
+                        Composed of subsidy at risk (£{fmt(viability.subsidyAtRisk)}), input cost shock (£{fmt(viability.nCostShock)})
+                        and water revenue loss (£{fmt(viability.waterRevenueLoss)}).
+                      </p>
+                    </div>
+                  )}
+                  {viability.flags.map((f) => (
+                    <div className="lever" key={f.key}>
+                      <div className="lever-head">
+                        <span className="lever-label">Lending flag</span>
+                        <span className="verdict-pill verdict-critical" style={{fontSize: '12px', padding: '4px 10px'}}>
+                          <span className="dot" />
+                          {f.key === 'natwest_lloyds' ? 'NatWest / Lloyds' : f.key === 'covenant' ? 'Covenant' : 'EIB / UKIB'}
+                        </span>
+                      </div>
+                      <p className="lever-detail">{f.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
             <footer className="modal-foot">
               <button
                 type="button"
                 className="modal-action"
                 onClick={() => setRiskOpen(false)}
+              >
+                Close
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {assumptionsOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setAssumptionsOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="assumptions-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="modal-head">
+              <div>
+                <span className="modal-eyebrow">Model transparency</span>
+                <h2 id="assumptions-title" className="modal-title">
+                  Assumptions &amp; <em>sources</em>
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setAssumptionsOpen(false)}
+                aria-label="Close assumptions panel"
+              >
+                ×
+              </button>
+            </header>
+            <p className="modal-intro">
+              What's real, what's indicative and what's a placeholder. The mix is
+              deliberate — the framework is sound; per-region and per-crop tuning
+              tightens it.
+            </p>
+
+            <h3 className="modal-section-title">Real, sourced</h3>
+            <ul className="assumptions-list">
+              <li><b>Water footprints</b> — FABLE 2021 EmbedWaterCrop (Mekonnen-Hoekstra global means, m³/t).</li>
+              <li><b>Crop yields &amp; reference N rates</b> — Defra / AHDB UK typical 2020–22.</li>
+              <li><b>N₂O emissions</b> — IPCC 2019 tier-1: 1% of synthetic N → N₂O-N, × 44/28 × 298 GWP100.</li>
+              <li><b>Subsidy floor £120/ha</b> — aligned with SFI base rates.</li>
+            </ul>
+
+            <h3 className="modal-section-title">Indicative — defensible ballpark</h3>
+            <ul className="assumptions-list">
+              <li><b>2040 thresholds</b> — freshwater 2,500 m³/ha (blue+grey), N 180 kg/ha, emissions 4.0 tCO₂e/ha, land 500 ha — CCC + Defra-aligned.</li>
+              <li><b>Crop prices</b> — wheat £900, OSR £950, barley £750, other £700 per tonne (UK farmgate, 2024–25).</li>
+              <li><b>N price uplift</b> — £100/t (£280 → £380), implied by carbon-priced fertiliser pathway.</li>
+              <li><b>Water revenue loss</b> — £150/ha × 40% of irrigated area, when in water-stressed regions.</li>
+            </ul>
+
+            <h3 className="modal-section-title">Placeholder — hand-tuned</h3>
+            <ul className="assumptions-list">
+              <li><b>Regional modifiers</b> — waterMod, biodivMod, landMod (0.7–1.4 ranges).</li>
+              <li><b>Soil fragility</b> — peaty 1.5×, sandy 1.1×, chalky 1.0×, clay 0.9×, loam 0.7×.</li>
+              <li><b>Per-crop tillage &amp; biodiv intensity</b> — 0–1 proxies until field data.</li>
+              <li><b>Subsidy retention tiers</b> — 1.0 / 0.6 / 0.2 by composite score; contract-grower drops one tier.</li>
+              <li><b>Business-model adjustments</b> — regen widens N envelope 20% and water 15%; diversified absorbs up to 25% revenue impact before structural risk.</li>
+              <li><b>Lever impacts</b> — +10–16 per vector, fixed magnitudes per intervention.</li>
+            </ul>
+
+            <h3 className="modal-section-title">Structural simplifications</h3>
+            <ul className="assumptions-list">
+              <li>Green water (rainfall) excluded from freshwater load — not abstracted.</li>
+              <li>Legumes (peas, field beans) carry zero synthetic N.</li>
+              <li>Peas water footprint proxied from field beans; linseed grey water set to 0.</li>
+              <li>Subsidy dependence capped at 95% internally to avoid 1/(1−sd) blow-up.</li>
+              <li>Only Supply (N) and Water vectors trigger financial cost shocks.</li>
+            </ul>
+
+            <footer className="modal-foot">
+              <button
+                type="button"
+                className="modal-action"
+                onClick={() => setAssumptionsOpen(false)}
               >
                 Close
               </button>
