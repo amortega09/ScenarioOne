@@ -39,11 +39,10 @@ function bandColor(key: Band['key']) {
 
 type SpiderProps = {
   vectors: VectorResult[]
-  score: number
   bandKey: Band['key']
 }
 
-function SpiderChart({ vectors, score, bandKey }: SpiderProps) {
+function SpiderChart({ vectors, bandKey }: SpiderProps) {
   const cx = 170
   const cy = 145
   const radius = 92
@@ -437,7 +436,7 @@ function App() {
           </div>
 
           <div className="spider-wrap">
-            <SpiderChart vectors={vectors} score={score} bandKey={band.key} />
+            <SpiderChart vectors={vectors} bandKey={band.key} />
           </div>
 
           <div className="viability-score">
