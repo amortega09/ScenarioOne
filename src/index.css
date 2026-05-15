@@ -1,0 +1,61 @@
+:root {
+  --moss-50: #f4f7f2;
+  --moss-100: #e6ede0;
+  --moss-200: #c9d8bf;
+  --moss-300: #a3bf95;
+  --moss-400: #7ea374;
+  --moss-500: #5a8455;
+  --moss-600: #436843;
+  --moss-700: #345237;
+  --moss-800: #243a28;
+  --moss-900: #16241a;
+
+  --bark: #5b4a3a;
+  --sand: #f6f1e6;
+  --cream: #faf8f2;
+  --ink: #1a2218;
+  --mist: rgba(26, 34, 24, 0.55);
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 32px;
+
+  --shadow-sm: 0 1px 2px rgba(36, 58, 40, 0.04), 0 1px 1px rgba(36, 58, 40, 0.03);
+  --shadow-md: 0 4px 16px rgba(36, 58, 40, 0.06), 0 1px 2px rgba(36, 58, 40, 0.04);
+  --shadow-lg: 0 20px 60px rgba(36, 58, 40, 0.1), 0 4px 14px rgba(36, 58, 40, 0.06);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  color: var(--ink);
+  background: var(--cream);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(163, 191, 149, 0.35), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(126, 163, 116, 0.22), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 0% 90%, rgba(201, 216, 191, 0.3), transparent 60%),
+    var(--cream);
+  background-attachment: fixed;
+}
+
+button {
+  font-family: inherit;
+}
