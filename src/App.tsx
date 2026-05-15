@@ -117,23 +117,6 @@ function SpiderChart({ vectors, score, bandKey }: SpiderProps) {
         )
       })}
 
-      <text
-        x={cx}
-        y={cy + 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        className="spider-center-score"
-      >
-        {score}
-      </text>
-      <text
-        x={cx}
-        y={cy + 28}
-        textAnchor="middle"
-        className="spider-center-label"
-      >
-        Viability
-      </text>
 
       {vectors.map((v, i) => {
         const p = point(i, labelRadius)
@@ -457,12 +440,15 @@ function App() {
             <SpiderChart vectors={vectors} score={score} bandKey={band.key} />
           </div>
 
+          <div className="viability-score">
+            <span className="viability-label">Viability</span>
+            <span className="viability-number">{score}</span>
+          </div>
+
         </div>
       </div>
 
-      <footer className="footer">
-        ScenarioOne · UK 2040 nature-positive stress test · Coefficients illustrative
-      </footer>
+
 
       {planOpen && (
         <div
