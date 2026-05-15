@@ -16,6 +16,7 @@ import {
   type VectorResult,
   type Band,
 } from './model'
+import { RevenueBar } from './RevenueBar'
 
 const DEFAULT_INPUTS: FarmInputs = {
   region: 'east_england',
@@ -593,22 +594,60 @@ function App() {
                 </span>
               </div>
 
-              <div className="viability-rows">
-                <div className="viability-row">
-                  <span className="viability-row-label">Subsidy at risk</span>
-                  <span className="viability-row-value">£{fmt(viability.subsidyAtRisk)}<span className="totals-unit">/yr</span></span>
+              <RevenueBar viability={viability} />
+
+              <div className="finbloc">
+                <span className="finbloc-title">Exposure</span>
+                <div className="viability-rows">
+                  <div className="viability-row">
+                    <span className="viability-row-label">Subsidy at risk</span>
+                    <span className="viability-row-value viability-row-neg">−£{fmt(viability.subsidyAtRisk)}<span className="totals-unit">/yr</span></span>
+                  </div>
+                  <div className="viability-row">
+                    <span className="viability-row-label">Input cost shock</span>
+                    <span className="viability-row-value viability-row-neg">−£{fmt(viability.nCostShock)}<span className="totals-unit">/yr</span></span>
+                  </div>
+                  <div className="viability-row">
+                    <span className="viability-row-label">Water revenue loss</span>
+                    <span className="viability-row-value viability-row-neg">−£{fmt(viability.waterRevenueLoss)}<span className="totals-unit">/yr</span></span>
+                  </div>
                 </div>
-                <div className="viability-row">
-                  <span className="viability-row-label">Input cost shock</span>
-                  <span className="viability-row-value">£{fmt(viability.nCostShock)}<span className="totals-unit">/yr</span></span>
+              </div>
+
+              {viability.transitionUpside > 0 && (
+                <div className="finbloc">
+                  <span className="finbloc-title">Upside</span>
+                  <div className="viability-rows">
+                    {viability.elmUplift > 0 && (
+                      <div className="viability-row">
+                        <span className="viability-row-label">ELM uplift</span>
+                        <span className="viability-row-value viability-row-pos">+£{fmt(viability.elmUplift)}<span className="totals-unit">/yr</span></span>
+                      </div>
+                    )}
+                    {viability.bngIncome > 0 && (
+                      <div className="viability-row">
+                        <span className="viability-row-label">BNG income</span>
+                        <span className="viability-row-value viability-row-pos">+£{fmt(viability.bngIncome)}<span className="totals-unit">/yr</span></span>
+                      </div>
+                    )}
+                    {viability.regenPremium > 0 && (
+                      <div className="viability-row">
+                        <span className="viability-row-label">Regen premium</span>
+                        <span className="viability-row-value viability-row-pos">+£{fmt(viability.regenPremium)}<span className="totals-unit">/yr</span></span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="viability-row">
-                  <span className="viability-row-label">Water revenue loss</span>
-                  <span className="viability-row-value">£{fmt(viability.waterRevenueLoss)}<span className="totals-unit">/yr</span></span>
+              )}
+
+              <div className="net-position">
+                <div className="net-position-label">
+                  Net position per ha
+                  <span className="muted">— upside minus exposure</span>
                 </div>
-                <div className="viability-row">
-                  <span className="viability-row-label">Net margin impact</span>
-                  <span className="viability-row-value">£{fmt(viability.netMarginImpactPerHa)}<span className="totals-unit">/ha · {(viability.impactAsPercentOfRevenue * 100).toFixed(1)}% rev</span></span>
+                <div className={`net-position-value ${viability.netPositionPerHa >= 0 ? 'net-position-pos' : 'net-position-neg'}`}>
+                  {viability.netPositionPerHa >= 0 ? '+' : '−'}£{fmt(Math.abs(viability.netPositionPerHa))}
+                  <span className="totals-unit">/ha · {(viability.impactAsPercentOfRevenue * 100).toFixed(1)}% rev exposure</span>
                 </div>
               </div>
             </div>
@@ -866,37 +905,69 @@ function App() {
 
             <h3 className="modal-section-title">Real, sourced</h3>
             <ul className="assumptions-list">
-              <li><b>Water footprints</b> — FABLE 2021 EmbedWaterCrop (Mekonnen-Hoekstra global means, m³/t).</li>
-              <li><b>Crop yields &amp; reference N rates</b> — Defra / AHDB UK typical 2020–22.</li>
-              <li><b>N₂O emissions</b> — IPCC 2019 tier-1: 1% of synthetic N → N₂O-N, × 44/28 × 298 GWP100.</li>
-              <li><b>Subsidy floor £120/ha</b> — aligned with SFI base rates.</li>
+              <li><b>Water footprints</b> (m³/t green/blue/grey, per crop) — FABLE 2021 EmbedWaterCrop, Mekonnen-Hoekstra global means. <i>Used in:</i> freshwater load per crop.</li>
+              <li><b>Crop yields &amp; reference N rates</b> — Defra / AHDB UK typical 2020–22, hand-coded per crop. <i>Used in:</i> production = area × yield; N applied = area × rate × fertMul.</li>
+              <li><b>N₂O emission factor</b> — IPCC 2019 tier-1: 1% of synthetic N → N₂O-N × 44/28 × 298 GWP100. <i>Used in:</i> field emissions.</li>
+              <li><b>Residue + tillage emissions</b> — 500 kgCO₂e/ha flat. <i>Used in:</i> field emissions (added per ha to N₂O).</li>
+            </ul>
+
+            <h3 className="modal-section-title">Calculation logic</h3>
+            <ul className="assumptions-list">
+              <li><b>Production</b> = area × UK reference yield, summed across crop rows.</li>
+              <li><b>N applied</b> = area × reference N × fertMul; legumes (peas, field beans) = 0.</li>
+              <li><b>Fertiliser intensity slider</b> 0–100 maps to multiplier <code>0.4 + (slider/100) × 1.2</code> (range 0.4–1.6×); 65 = UK average. <i>Used in:</i> N applied + grey-water scaling.</li>
+              <li><b>Irrigation slider</b> 0–100% sets blue-water scale; 100% = full FABLE blue value. <i>Used in:</i> freshwater load.</li>
+              <li><b>Freshwater load</b> = production × (blue × irrigation% + grey × fertMul). Green water excluded.</li>
+              <li><b>Diversity bonus</b> = <code>min(unique crops × 3, 18)</code>. <i>Used in:</i> Soil (×0.3) and Biodiversity (×1) vector lifts.</li>
+              <li><b>Nature vectors</b> — each starts at 100, loses <code>(intensity / threshold) × 50</code> (×60 for Supply); Soil and Biodiv additionally subtract tillage/region load and add the diversity bonus; all clamped 0–100.</li>
+              <li><b>Composite score</b> = mean of the five vector scores.</li>
+              <li><b>Band cutoffs</b> — &lt;35 Critical, &lt;55 At risk, &lt;75 Adapting, ≥75 Resilient.</li>
+              <li><b>Deficit narrative</b> shown when a vector &lt; 60; <b>lever</b> surfaced when vector &lt; 70.</li>
+              <li><b>Subsidy</b> back-solved from dependence %: <code>cropRev × sd / (1 − sd)</code>, sd capped at 95%, bounded £120–£400/ha. <i>Used in:</i> total revenue + subsidy-at-risk.</li>
+              <li><b>Subsidy at risk</b> = subsidy × (1 − retention rate).</li>
+              <li><b>N cost shock</b> = totalHa × (N kg/ha) × 0.001 × £100/t; fires only when Supply &lt; 75.</li>
+              <li><b>Water revenue loss</b> = irrigated ha × 40% × £150/ha; fires only when Water &lt; 75 AND region is water-stressed.</li>
+              <li><b>Net position per ha</b> = upside per ha − exposure per ha (positive = net gain from transition).</li>
+              <li><b>Impact as % revenue</b> = total impact / total revenue (denominator includes upside, intentionally).</li>
             </ul>
 
             <h3 className="modal-section-title">Indicative — defensible ballpark</h3>
             <ul className="assumptions-list">
-              <li><b>2040 thresholds</b> — freshwater 2,500 m³/ha (blue+grey), N 180 kg/ha, emissions 4.0 tCO₂e/ha, land 500 ha — CCC + Defra-aligned.</li>
-              <li><b>Crop prices</b> — wheat £900, OSR £950, barley £750, other £700 per tonne (UK farmgate, 2024–25).</li>
-              <li><b>N price uplift</b> — £100/t (£280 → £380), implied by carbon-priced fertiliser pathway.</li>
-              <li><b>Water revenue loss</b> — £150/ha × 40% of irrigated area, when in water-stressed regions.</li>
+              <li><b>2040 thresholds</b> (CCC + Defra-aligned) — freshwater 2,500 m³/ha, N 180 kg/ha, emissions 4.0 tCO₂e/ha, land 500 ha. <i>Used in:</i> Water / Supply / Soil / Land vector scoring.</li>
+              <li><b>Crop prices £/t</b> — wheat 900, OSR 950, barley 750, other 700 (UK farmgate 2024–25). <i>Used in:</i> crop revenue.</li>
+              <li><b>Subsidy bounds £120–£400/ha</b> — floor = SFI base; ceiling = BPS-era + stacked SFI base. <i>Used in:</i> subsidy income clamp.</li>
+              <li><b>N price uplift £100/t</b> (£280 → £380; CBAM + carbon-priced trajectory). <i>Used in:</i> N cost shock.</li>
+              <li><b>Water revenue loss £150/ha × 40%</b> of irrigated area. <i>Used in:</i> water cost shock.</li>
+              <li><b>Water-stressed regions</b> — East of England, East Midlands, South East. <i>Used in:</i> water cost shock gate + covenant lending flag.</li>
+              <li><b>ELM uplift tiers</b> — £200/£400/£600 per ha at composite &gt; 60/75/85 (CS higher-tier published rates).</li>
+              <li><b>BNG income</b> — £25/ha (£50/ha if biodiv &gt; 75) when business model is regen or diversified AND biodiv &gt; 60. Order-of-magnitude only.</li>
+              <li><b>Regenerative price premium</b> — 10% on crop revenue (conservative midpoint of 8–12%). Fires only for regen model.</li>
+              <li><b>Subsidy retention tiers</b> — composite &gt;75 → 100%, 50–75 → 60%, &lt;50 → 20%; contract grower drops one tier. <i>Used in:</i> subsidy at risk.</li>
+              <li><b>Verdict cutoffs</b> — &lt;10% revenue exposure → Viable, 10–20% → Needs transformation, ≥20% → Structural risk (≥25% for diversified).</li>
+              <li><b>Lending flags</b> — (N&lt;50 AND subsidyDep&gt;50) → NatWest/Lloyds; (Water&lt;50 AND stressed region) → covenant; (high-input-commodity AND composite&lt;50) → EIB/UKIB.</li>
             </ul>
 
             <h3 className="modal-section-title">Placeholder — hand-tuned</h3>
             <ul className="assumptions-list">
-              <li><b>Regional modifiers</b> — waterMod, biodivMod, landMod (0.7–1.4 ranges).</li>
-              <li><b>Soil fragility</b> — peaty 1.5×, sandy 1.1×, chalky 1.0×, clay 0.9×, loam 0.7×.</li>
-              <li><b>Per-crop tillage &amp; biodiv intensity</b> — 0–1 proxies until field data.</li>
-              <li><b>Subsidy retention tiers</b> — 1.0 / 0.6 / 0.2 by composite score; contract-grower drops one tier.</li>
-              <li><b>Business-model adjustments</b> — regen widens N envelope 20% and water 15%; diversified absorbs up to 25% revenue impact before structural risk.</li>
-              <li><b>Lever impacts</b> — +10–16 per vector, fixed magnitudes per intervention.</li>
+              <li><b>Regional modifiers</b> — waterMod 0.7–1.4, biodivMod 0.9–1.3, landMod 0.9–1.3 across 11 UK regions. <i>Used in:</i> Water, Biodiv, Land vector scoring + cost shock gates.</li>
+              <li><b>Soil fragility</b> — loam 0.7, clay 0.9, chalky 1.0, sandy 1.1, peaty 1.5. <i>Used in:</i> Soil vector scoring (multiplies tillage load).</li>
+              <li><b>Per-crop tillage_intensity &amp; biodiv_intensity</b> — 0–1 proxies, no field data. <i>Used in:</i> Soil and Biodiversity loads.</li>
+              <li><b>Business-model threshold adjustments</b> — regen widens N envelope 20% and freshwater 15%; contract grower drops a subsidy retention tier; diversified pushes structural-risk cutoff 20% → 25%.</li>
+              <li><b>Lever impacts</b> — fixed +4 to +16 per vector per intervention (5 levers).</li>
             </ul>
 
-            <h3 className="modal-section-title">Structural simplifications</h3>
+            <h3 className="modal-section-title">Known omissions &amp; simplifications</h3>
             <ul className="assumptions-list">
-              <li>Green water (rainfall) excluded from freshwater load — not abstracted.</li>
-              <li>Legumes (peas, field beans) carry zero synthetic N.</li>
-              <li>Peas water footprint proxied from field beans; linseed grey water set to 0.</li>
-              <li>Subsidy dependence capped at 95% internally to avoid 1/(1−sd) blow-up.</li>
-              <li>Only Supply (N) and Water vectors trigger financial cost shocks.</li>
+              <li>Green water (rainfall) excluded from freshwater load — not abstracted, no catchment ceiling.</li>
+              <li>Legumes (peas, field beans) carry zero synthetic N (fixesN flag).</li>
+              <li>Peas water footprint proxied from field beans; linseed grey water = 0 (no FABLE entry).</li>
+              <li>Subsidy dependence anchored to crop revenue only — transition upside added on top, not back-solved into the dependence ratio.</li>
+              <li>Only Supply (N) and Water vectors drive financial cost shocks; Land, Soil and Biodiv have no direct £ line.</li>
+              <li><b>Pesticide spend not modelled</b> — would add ~£10–15k/yr 2040 PPP-restriction shock on a 320 ha arable.</li>
+              <li><b>Energy / fuel cost not modelled</b> — would add ~£10–20k/yr with carbon-priced diesel.</li>
+              <li><b>Stranded assets not quantified</b> — specialised irrigation / fertiliser-application infrastructure becoming uneconomic.</li>
+              <li><b>Yield is fixed</b> — no yield reduction from input cuts or PPP bans.</li>
+              <li><b>Single 2040 snapshot</b> — no time trajectory; tool shows <i>if</i> the model breaks, not <i>when</i>.</li>
             </ul>
 
             <footer className="modal-foot">

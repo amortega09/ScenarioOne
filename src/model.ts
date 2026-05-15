@@ -481,6 +481,12 @@ export type LendingFlag = {
 export type BusinessViability = {
   cropRevenue: number
   subsidyIncome: number
+  // Upside revenue streams unlocked by transition. Each fires conditionally;
+  // zero when the gate isn't met.
+  elmUplift: number
+  bngIncome: number
+  regenPremium: number
+  transitionUpside: number
   totalRevenue: number
   retentionRate: number
   subsidyAtRisk: number
@@ -488,6 +494,8 @@ export type BusinessViability = {
   waterRevenueLoss: number
   totalImpact: number
   netMarginImpactPerHa: number
+  upsidePerHa: number
+  netPositionPerHa: number
   impactAsPercentOfRevenue: number
   verdict: Verdict
   flags: LendingFlag[]
@@ -550,13 +558,42 @@ export function computeBusinessViability(
 
   // === Subsidy ===
   // Solve subsidyIncome / (cropRevenue + subsidyIncome) = sd, clamped to avoid /0 at 100%.
+  // The dependence slider reflects today's revenue mix; transition upside is added on top,
+  // not back-solved into the dependence ratio.
+  // Bounded per-ha to UK reality: £120/ha floor (SFI base), £400/ha ceiling (BPS-era +
+  // stacked SFI base options upper bound). Without the ceiling, the back-solve produces
+  // figures that scale with crop revenue and quickly exceed actual UK subsidy receipts
+  // for high-revenue arable — bloating subsidy-at-risk and dominating the verdict.
   const sd = clamp(input.subsidyDependence, 0, 95) / 100
   const rawSubsidy = sd > 0 ? (cropRevenue / (1 - sd)) * sd : 0
-  // £120/ha is a sanity floor against SFI base rates so very small crop revenue still
-  // produces a plausible subsidy line.
   const subsidyFloor = sd > 0 ? 120 * totalHa : 0
-  const subsidyIncome = Math.max(rawSubsidy, subsidyFloor)
-  const totalRevenue = cropRevenue + subsidyIncome
+  const subsidyCeiling = sd > 0 ? 400 * totalHa : 0
+  const subsidyIncome =
+    sd > 0 ? clamp(rawSubsidy, subsidyFloor, subsidyCeiling) : 0
+
+  // === Transition upside (revenue gates that open under nature-positive trajectories) ===
+  const biodivScore = vectors.find((v) => v.key === 'biodiv')!.score
+  // ELM uplift tiers — aligned with CS higher-tier published rates.
+  let elmRate = 0
+  if (compositeScore > 85) elmRate = 600
+  else if (compositeScore > 75) elmRate = 400
+  else if (compositeScore > 60) elmRate = 200
+  const elmUplift = elmRate * totalHa
+
+  // BNG income — order-of-magnitude only. Gated on business model (only regen/diversified
+  // realistically register units) AND biodiv vector signalling habitat capacity exists.
+  const bngEligible =
+    (input.businessModelType === 'regenerative' ||
+      input.businessModelType === 'diversified') && biodivScore > 60
+  const bngRate = biodivScore > 75 ? 50 : 25
+  const bngIncome = bngEligible ? bngRate * totalHa : 0
+
+  // Regenerative price premium — conservative 10% on crop revenue (mid of 8-12%).
+  const regenPremium =
+    input.businessModelType === 'regenerative' ? cropRevenue * 0.1 : 0
+
+  const transitionUpside = elmUplift + bngIncome + regenPremium
+  const totalRevenue = cropRevenue + subsidyIncome + transitionUpside
 
   // === Subsidy retention vs 2040 conditionality ===
   const retentionRate = retentionFor(compositeScore, input.businessModelType)
@@ -578,6 +615,9 @@ export function computeBusinessViability(
   // === Roll-up ===
   const totalImpact = subsidyAtRisk + nCostShock + waterRevenueLoss
   const netMarginImpactPerHa = totalHa > 0 ? totalImpact / totalHa : 0
+  const upsidePerHa = totalHa > 0 ? transitionUpside / totalHa : 0
+  // Positive = farm gains net from the transition; negative = exposure exceeds upside.
+  const netPositionPerHa = upsidePerHa - netMarginImpactPerHa
   const impactAsPercentOfRevenue =
     totalRevenue > 0 ? totalImpact / totalRevenue : 0
 
@@ -608,6 +648,10 @@ export function computeBusinessViability(
   return {
     cropRevenue,
     subsidyIncome,
+    elmUplift,
+    bngIncome,
+    regenPremium,
+    transitionUpside,
     totalRevenue,
     retentionRate,
     subsidyAtRisk,
@@ -615,6 +659,8 @@ export function computeBusinessViability(
     waterRevenueLoss,
     totalImpact,
     netMarginImpactPerHa,
+    upsidePerHa,
+    netPositionPerHa,
     impactAsPercentOfRevenue,
     verdict: verdictFor(impactAsPercentOfRevenue, input.businessModelType),
     flags,
