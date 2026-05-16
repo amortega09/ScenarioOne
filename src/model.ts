@@ -575,6 +575,81 @@ export type BusinessProjection = {
   }
 }
 
+export type FinancialAssumptionKey =
+  | 'landRemainsCheap'
+  | 'waterRemainsCheap'
+  | 'cropPricesStayStable'
+  | 'subsidyStaysUnconditional'
+  | 'externalitiesStayFree'
+  | 'supplyChainsStayOpaque'
+  | 'financeStaysNeutral'
+
+export type FinancialAssumptionState = Record<FinancialAssumptionKey, boolean>
+
+export type FinancialAssumptionDefinition = {
+  key: FinancialAssumptionKey
+  label: string
+  stress: string
+}
+
+export const FINANCIAL_ASSUMPTIONS: FinancialAssumptionDefinition[] = [
+  {
+    key: 'landRemainsCheap',
+    label: 'Land remains cheap',
+    stress: 'Restoration competition and tighter land-use planning raise rent / capital charges.',
+  },
+  {
+    key: 'waterRemainsCheap',
+    label: 'Water remains cheap',
+    stress: 'Abstraction pricing rises in stressed catchments and blue-water exposure becomes visible.',
+  },
+  {
+    key: 'cropPricesStayStable',
+    label: 'Crop prices stay stable',
+    stress: 'Nature-negative demand discounts and commodity swings hit crop revenue.',
+  },
+  {
+    key: 'subsidyStaysUnconditional',
+    label: 'Subsidy stays unconditional',
+    stress: 'Public support migrates toward verified nature-positive outcomes.',
+  },
+  {
+    key: 'externalitiesStayFree',
+    label: 'Externalities stay free',
+    stress: 'Synthetic-N, water degradation and land-pressure costs are priced into operations.',
+  },
+  {
+    key: 'supplyChainsStayOpaque',
+    label: 'Supply chains stay opaque',
+    stress: 'Disclosure and traceability mandates add compliance cost for weak nature data.',
+  },
+  {
+    key: 'financeStaysNeutral',
+    label: 'Finance stays neutral',
+    stress: 'Lenders and insurers re-price nature-risk exposure into capital costs.',
+  },
+]
+
+export const DEFAULT_FINANCIAL_ASSUMPTIONS: FinancialAssumptionState = {
+  landRemainsCheap: true,
+  waterRemainsCheap: true,
+  cropPricesStayStable: true,
+  subsidyStaysUnconditional: true,
+  externalitiesStayFree: true,
+  supplyChainsStayOpaque: true,
+  financeStaysNeutral: true,
+}
+
+export const NO_HIDDEN_FINANCIAL_ASSUMPTIONS: FinancialAssumptionState = {
+  landRemainsCheap: false,
+  waterRemainsCheap: false,
+  cropPricesStayStable: false,
+  subsidyStaysUnconditional: false,
+  externalitiesStayFree: false,
+  supplyChainsStayOpaque: false,
+  financeStaysNeutral: false,
+}
+
 function verdictFor(
   pct: number,
   bm: BusinessModelKey,
@@ -747,6 +822,7 @@ export function computeBusinessProjection(
   input: FarmInputs,
   assessment: Assessment,
   viability: BusinessViability,
+  scenario: FinancialAssumptionState = DEFAULT_FINANCIAL_ASSUMPTIONS,
 ): BusinessProjection {
   const startYear = 2026
   const endYear = 2040
@@ -765,10 +841,13 @@ export function computeBusinessProjection(
   const landRisk = clamp((75 - landScore) / 75, 0, 1)
   const natureRisk = clamp((75 - assessment.score) / 75, 0, 1)
   const waterRegion = region.waterStressed
-  const landCapitalRate2040 =
-    0.018 + 0.012 * landRisk + (input.businessModelType === 'high_input_commodity' ? 0.004 : 0)
-  const waterCostPerM32040 =
-    0.015 + 0.045 * region.waterMod + (waterRegion ? 0.025 : 0) * waterRisk
+  const landCapitalRate2040 = scenario.landRemainsCheap
+    ? 0.018
+    : 0.024 + 0.028 * landRisk + (input.businessModelType === 'high_input_commodity' ? 0.008 : 0)
+  const landValueGrowth = scenario.landRemainsCheap ? 0.004 : 0.022
+  const waterCostPerM32040 = scenario.waterRemainsCheap
+    ? 0.015
+    : 0.025 + 0.085 * region.waterMod + (waterRegion ? 0.06 : 0) * waterRisk
   const demandShift2040 =
     input.businessModelType === 'regenerative'
       ? 0.04
@@ -785,7 +864,7 @@ export function computeBusinessProjection(
   for (let year = startYear; year <= endYear; year++) {
     const elapsed = year - startYear
     const pressure = horizon > 0 ? elapsed / horizon : 1
-    const landValue = landValuePerHa2026 * Math.pow(1.012, elapsed)
+    const landValue = landValuePerHa2026 * Math.pow(1 + landValueGrowth, elapsed)
     const landCapitalRate = 0.018 + (landCapitalRate2040 - 0.018) * pressure
     const waterCostPerM3 = 0.015 + (waterCostPerM32040 - 0.015) * pressure
 
@@ -795,10 +874,19 @@ export function computeBusinessProjection(
       const crop = CROPS.find((c) => c.key === row.crop)
       if (!crop) continue
       const basePrice = CROP_PRICE_PER_T[row.crop] ?? DEFAULT_CROP_PRICE_PER_T
-      const growth = CROP_PRICE_ANNUAL_GROWTH[row.crop] ?? DEFAULT_CROP_PRICE_ANNUAL_GROWTH
+      const growth = scenario.cropPricesStayStable
+        ? DEFAULT_CROP_PRICE_ANNUAL_GROWTH
+        : CROP_PRICE_ANNUAL_GROWTH[row.crop] ?? DEFAULT_CROP_PRICE_ANNUAL_GROWTH
       const cropBaseRevenue = row.hectares * crop.yield_t_ha * basePrice
-      const demandModifier = 1 + demandShift2040 * pressure
-      cropRevenue += cropBaseRevenue * Math.pow(1 + growth, elapsed) * demandModifier
+      const demandModifier = scenario.cropPricesStayStable ? 1 : 1 + demandShift2040 * pressure
+      const volatilityShock = scenario.cropPricesStayStable
+        ? 1
+        : 1 + Math.sin(elapsed * 1.7) * 0.04 - pressure * (0.035 + 0.075 * natureRisk)
+      cropRevenue +=
+        cropBaseRevenue *
+        Math.pow(1 + growth, elapsed) *
+        demandModifier *
+        volatilityShock
 
       if (year === startYear) {
         weightedGrowth += cropBaseRevenue * growth
@@ -806,7 +894,9 @@ export function computeBusinessProjection(
       }
     }
 
-    const subsidyIncome = Math.max(0, viability.subsidyIncome - viability.subsidyAtRisk * pressure)
+    const subsidyIncome = scenario.subsidyStaysUnconditional
+      ? viability.subsidyIncome
+      : Math.max(0, viability.subsidyIncome - viability.subsidyAtRisk * pressure)
     const transitionUpside = viability.transitionUpside * pressure
     const totalRevenue = cropRevenue + subsidyIncome + transitionUpside
     const operatingCosts =
@@ -814,22 +904,29 @@ export function computeBusinessProjection(
     const landCost = totalHa * landValue * landCapitalRate
     const waterCost = assessment.totals.freshwater_m3 * waterCostPerM3
     const complianceCost =
-      totalRevenue *
-      pressure *
-      (0.006 +
-        0.01 * biodivRisk +
-        0.008 * supplyRisk +
-        (input.businessModelType === 'high_input_commodity' ? 0.006 : 0))
+      scenario.supplyChainsStayOpaque
+        ? totalRevenue * 0.002
+        : totalRevenue *
+          pressure *
+          (0.014 +
+            0.018 * biodivRisk +
+            0.016 * supplyRisk +
+            (input.businessModelType === 'high_input_commodity' ? 0.012 : 0))
     const financeAndInsuranceCost =
-      totalRevenue *
-      (0.012 +
-        pressure *
-          (0.006 +
-            0.018 * natureRisk +
-            (input.businessModelType === 'regenerative' ? -0.004 : 0)))
-    const naturePolicyCosts =
-      pressure *
-      (viability.nCostShock + viability.waterRevenueLoss + totalHa * 18 * landRisk)
+      scenario.financeStaysNeutral
+        ? totalRevenue * 0.012
+        : totalRevenue *
+          (0.014 +
+            pressure *
+              (0.014 +
+                0.045 * natureRisk +
+                (input.businessModelType === 'regenerative' ? -0.004 : 0)))
+    const naturePolicyCosts = scenario.externalitiesStayFree
+      ? 0
+      : pressure *
+        (viability.nCostShock * 1.8 +
+          viability.waterRevenueLoss * 1.5 +
+          totalHa * (65 * landRisk + 45 * supplyRisk + 30 * waterRisk))
     const totalCosts =
       operatingCosts +
       landCost +

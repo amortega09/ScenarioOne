@@ -5,10 +5,15 @@ import {
   CROPS,
   SOIL_TYPES,
   BUSINESS_MODELS,
+  FINANCIAL_ASSUMPTIONS,
+  DEFAULT_FINANCIAL_ASSUMPTIONS,
+  NO_HIDDEN_FINANCIAL_ASSUMPTIONS,
   computeAssessment,
   computeBusinessViability,
   computeBusinessProjection,
   type FarmInputs,
+  type FinancialAssumptionKey,
+  type FinancialAssumptionState,
   type CropRow,
   type CropKey,
   type RegionKey,
@@ -166,6 +171,8 @@ function SpiderChart({ vectors, score, bandKey }: SpiderProps) {
 
 function App() {
   const [inputs, setInputs] = useState<FarmInputs>(DEFAULT_INPUTS)
+  const [financialAssumptions, setFinancialAssumptions] =
+    useState<FinancialAssumptionState>(DEFAULT_FINANCIAL_ASSUMPTIONS)
 
   const assessment = useMemo(() => computeAssessment(inputs), [inputs])
   const { score, band, vectors, levers, totalHa, totals } = assessment
@@ -176,13 +183,55 @@ function App() {
     [inputs, assessment],
   )
   const projection = useMemo(
-    () => computeBusinessProjection(inputs, assessment, viability),
+    () => computeBusinessProjection(inputs, assessment, viability, financialAssumptions),
+    [inputs, assessment, viability, financialAssumptions],
+  )
+  const hiddenAssumptionProjection = useMemo(
+    () =>
+      computeBusinessProjection(
+        inputs,
+        assessment,
+        viability,
+        DEFAULT_FINANCIAL_ASSUMPTIONS,
+      ),
     [inputs, assessment, viability],
+  )
+  const noHiddenAssumptionProjection = useMemo(
+    () =>
+      computeBusinessProjection(
+        inputs,
+        assessment,
+        viability,
+        NO_HIDDEN_FINANCIAL_ASSUMPTIONS,
+      ),
+    [inputs, assessment, viability],
+  )
+  const assumptionImpacts = useMemo(
+    () =>
+      FINANCIAL_ASSUMPTIONS.map((assumption) => {
+        const singleStress = {
+          ...DEFAULT_FINANCIAL_ASSUMPTIONS,
+          [assumption.key]: false,
+        }
+        const stressed = computeBusinessProjection(inputs, assessment, viability, singleStress)
+        return {
+          ...assumption,
+          enabled: financialAssumptions[assumption.key],
+          impactPerHa: stressed.margin2040PerHa - hiddenAssumptionProjection.margin2040PerHa,
+        }
+      }),
+    [inputs, assessment, viability, financialAssumptions, hiddenAssumptionProjection],
   )
 
   const fmt = (n: number, digits = 0) =>
     n.toLocaleString('en-GB', { maximumFractionDigits: digits })
   const fmtYear = (n: number) => n.toFixed(1).replace(/\.0$/, '')
+  const activeAssumptionDrag =
+    projection.margin2040PerHa - hiddenAssumptionProjection.margin2040PerHa
+
+  const toggleFinancialAssumption = (key: FinancialAssumptionKey) => {
+    setFinancialAssumptions((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
 
   const [planOpen, setPlanOpen] = useState(false)
   const [riskOpen, setRiskOpen] = useState(false)
@@ -525,7 +574,10 @@ function App() {
           <button
             className="reset"
             type="button"
-            onClick={() => setInputs(DEFAULT_INPUTS)}
+            onClick={() => {
+              setInputs(DEFAULT_INPUTS)
+              setFinancialAssumptions(DEFAULT_FINANCIAL_ASSUMPTIONS)
+            }}
           >
             Reset to baseline
           </button>
@@ -643,6 +695,66 @@ function App() {
                 <ViabilityTimeline projection={projection} />
                 <div className="timeline-note">
                   Price, land, water, compliance and finance assumptions phase from 2026 to 2040.
+                </div>
+              </div>
+
+              <div className="assumption-stress-panel">
+                <div className="assumption-stress-head">
+                  <div>
+                    <span className="finbloc-title">Hidden assumptions</span>
+                    <p>On means the optimistic assumption is baked in. Off applies the 2040 stressor.</p>
+                  </div>
+                  <div className={`assumption-total ${activeAssumptionDrag <= 0 ? 'assumption-total-neg' : 'assumption-total-pos'}`}>
+                    {activeAssumptionDrag >= 0 ? '+' : '−'}£{fmt(Math.abs(activeAssumptionDrag))}
+                    <span className="totals-unit">/ha vs all on</span>
+                  </div>
+                </div>
+
+                <div className="assumption-actions">
+                  <button
+                    type="button"
+                    onClick={() => setFinancialAssumptions(DEFAULT_FINANCIAL_ASSUMPTIONS)}
+                  >
+                    All on
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFinancialAssumptions(NO_HIDDEN_FINANCIAL_ASSUMPTIONS)}
+                  >
+                    All off
+                  </button>
+                  <span className={noHiddenAssumptionProjection.margin2040PerHa >= 0 ? 'assumption-action-note-pos' : 'assumption-action-note-neg'}>
+                    All off: {noHiddenAssumptionProjection.margin2040PerHa >= 0 ? '+' : '−'}£{fmt(Math.abs(noHiddenAssumptionProjection.margin2040PerHa))}/ha in 2040
+                  </span>
+                </div>
+
+                <div className="assumption-stress-grid">
+                  {assumptionImpacts.map((assumption) => (
+                    <label
+                      className={`assumption-check ${assumption.enabled ? 'assumption-check-active' : ''}`}
+                      key={assumption.key}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={assumption.enabled}
+                        onChange={() => toggleFinancialAssumption(assumption.key)}
+                      />
+                      <span className="assumption-switch" aria-hidden="true">
+                        <span className="assumption-switch-knob" />
+                      </span>
+                      <span className="assumption-check-copy">
+                        <span className="assumption-check-label">{assumption.label}</span>
+                        <span className="assumption-check-detail">{assumption.stress}</span>
+                      </span>
+                      <span className={`assumption-state ${assumption.enabled ? 'assumption-state-on' : 'assumption-state-off'}`}>
+                        {assumption.enabled ? 'On' : 'Off'}
+                      </span>
+                      <span className={`assumption-impact ${assumption.impactPerHa <= 0 ? 'assumption-impact-neg' : 'assumption-impact-pos'}`}>
+                        {assumption.impactPerHa >= 0 ? '+' : '−'}£{fmt(Math.abs(assumption.impactPerHa))}
+                        <span>/ha</span>
+                      </span>
+                    </label>
+                  ))}
                 </div>
               </div>
 
@@ -990,6 +1102,7 @@ function App() {
               <li><b>Net position per ha</b> = upside per ha − exposure per ha (positive = net gain from transition).</li>
               <li><b>Impact as % revenue</b> = total impact / total revenue (denominator includes upside, intentionally).</li>
               <li><b>Projection break year</b> = first year where projected total costs exceed projected total revenue between 2026 and 2040; interpolated linearly if the crossing falls between annual points.</li>
+              <li><b>Hidden-assumption stress impact</b> = 2040 margin per ha with one optimistic assumption switched off minus 2040 margin per ha with all optimistic assumptions switched on. Active scenario drag is current projection margin per ha minus the all-on baseline.</li>
             </ul>
 
             <h3 className="modal-section-title">Indicative — defensible ballpark</h3>
@@ -997,6 +1110,7 @@ function App() {
               <li><b>2040 thresholds</b> (CCC + Defra-aligned, uniform across all business models) — freshwater 2,500 m³/ha, N 180 kg/ha, emissions 4.0 tCO₂e/ha, land 500 ha. <i>Used in:</i> Water / Supply / Soil / Land vector scoring.</li>
               <li><b>Crop prices £/t</b> — wheat 900, OSR 950, barley 750, other 700 (UK farmgate 2024–25). <i>Used in:</i> crop revenue.</li>
               <li><b>Crop price trajectory</b> — annual growth by crop from 1.3–2.1%; current weighted assumption is {(projection.assumptions.weightedCropPriceGrowth * 100).toFixed(1)}%/yr for this crop mix. <i>Used in:</i> revenue curve.</li>
+              <li><b>Crop price fluctuation stress</b> — deterministic prototype volatility adds a small cycle and a nature-risk demand haircut through 2040. Future version can ingest commodity-price scenarios per crop.</li>
               <li><b>Operating cost ratio</b> — 68–76% of crop revenue by business model; current assumption is {(projection.assumptions.operatingCostRatio * 100).toFixed(0)}%. <i>Used in:</i> cost curve.</li>
               <li><b>Land value</b> — regional 2026 land value baseline £{fmt(projection.assumptions.landValuePerHa2026)}/ha, growing 1.2%/yr with capital-rate surcharge for land-pressure risk. <i>Used in:</i> land cost curve.</li>
               <li><b>Water cost trajectory</b> — £0.015/m³ in 2026 rising to £{projection.assumptions.waterCostPerM32040.toFixed(3)}/m³ by 2040 under regional water stress. <i>Used in:</i> water cost curve.</li>
