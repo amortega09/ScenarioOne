@@ -589,44 +589,52 @@ export type FinancialAssumptionState = Record<FinancialAssumptionKey, boolean>
 export type FinancialAssumptionDefinition = {
   key: FinancialAssumptionKey
   label: string
-  stress: string
+  onText: string
+  offText: string
 }
 
 export const FINANCIAL_ASSUMPTIONS: FinancialAssumptionDefinition[] = [
   {
     key: 'landRemainsCheap',
     label: 'Land remains cheap',
-    stress: 'Restoration competition and tighter land-use planning raise rent / capital charges.',
+    onText: 'Rent and capital charges stay close to today because restoration demand is not priced in.',
+    offText: 'Restoration competition and tighter land-use planning raise rent / capital charges.',
   },
   {
     key: 'waterRemainsCheap',
     label: 'Water remains cheap',
-    stress: 'Abstraction pricing rises in stressed catchments and blue-water exposure becomes visible.',
+    onText: 'Abstraction stays inexpensive and blue-water exposure is not materially priced.',
+    offText: 'Abstraction pricing rises in stressed catchments and blue-water exposure becomes visible.',
   },
   {
     key: 'cropPricesStayStable',
     label: 'Crop prices stay stable',
-    stress: 'Nature-negative demand discounts and commodity swings hit crop revenue.',
+    onText: 'Crop prices follow a smooth baseline and buyers do not discount nature-risk exposure.',
+    offText: 'Nature-negative demand discounts and commodity swings hit crop revenue.',
   },
   {
     key: 'subsidyStaysUnconditional',
     label: 'Subsidy stays unconditional',
-    stress: 'Public support migrates toward verified nature-positive outcomes.',
+    onText: 'Area-based support continues without strong nature-performance conditionality.',
+    offText: 'Public support migrates toward verified nature-positive outcomes.',
   },
   {
     key: 'externalitiesStayFree',
     label: 'Externalities stay free',
-    stress: 'Synthetic-N, water degradation and land-pressure costs are priced into operations.',
+    onText: 'Synthetic-N, water degradation and land-pressure costs remain outside the P&L.',
+    offText: 'Synthetic-N, water degradation and land-pressure costs are priced into operations.',
   },
   {
     key: 'supplyChainsStayOpaque',
     label: 'Supply chains stay opaque',
-    stress: 'Disclosure and traceability mandates add compliance cost for weak nature data.',
+    onText: 'Weak traceability does not trigger disclosure, assurance or supplier-data costs.',
+    offText: 'Disclosure and traceability mandates add compliance cost for weak nature data.',
   },
   {
     key: 'financeStaysNeutral',
     label: 'Finance stays neutral',
-    stress: 'Lenders and insurers re-price nature-risk exposure into capital costs.',
+    onText: 'Lenders and insurers do not price nature risk into debt, covenant or premium terms.',
+    offText: 'Lenders and insurers re-price nature-risk exposure into capital costs.',
   },
 ]
 

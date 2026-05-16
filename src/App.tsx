@@ -733,7 +733,9 @@ function App() {
                       </span>
                       <span className="assumption-check-copy">
                         <span className="assumption-check-label">{assumption.label}</span>
-                        <span className="assumption-check-detail">{assumption.stress}</span>
+                        <span className="assumption-check-detail">
+                          {assumption.enabled ? assumption.onText : assumption.offText}
+                        </span>
                       </span>
                       <span className={`assumption-state ${assumption.enabled ? 'assumption-state-on' : 'assumption-state-off'}`}>
                         {assumption.enabled ? 'On' : 'Off'}
