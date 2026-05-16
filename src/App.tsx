@@ -816,17 +816,7 @@ function App() {
                   setEquationsTab('equations')
                 }}
               >
-                View equations
-              </button>
-              <button
-                type="button"
-                className="assess-btn assess-btn-risk"
-                onClick={() => {
-                  setEquationsOpen(true)
-                  setEquationsTab('assumptions')
-                }}
-              >
-                View assumptions
+                Equations &amp; Assumptions
               </button>
             </div>
           </div>
@@ -1071,13 +1061,7 @@ function App() {
                 className={`analysis-tab ${equationsTab === 'equations' ? 'active' : ''}`}
                 onClick={() => setEquationsTab('equations')}
               >
-                Equations &amp; steps
-              </button>
-              <button
-                className={`analysis-tab ${equationsTab === 'assumptions' ? 'active' : ''}`}
-                onClick={() => setEquationsTab('assumptions')}
-              >
-                Assumptions
+                Logic &amp; Assumptions
               </button>
               <button
                 className={`analysis-tab ${equationsTab === 'nomenclature' ? 'active' : ''}`}
@@ -1091,11 +1075,31 @@ function App() {
               {equationsTab === 'equations' && (
                 <div className="tab-content">
                   <p className="modal-intro">
-                    Every formula the tool uses, step by step. Coefficients and bounds are
-                    documented in the <i>Assumptions</i> tab.
+                    The framework is derived from the UK 2040 nature-positive pathway.
+                    Below is the calculation chain from physical units to financial exposure.
                   </p>
 
-                  <h3 className="modal-section-title">Nature score</h3>
+                  <h3 className="modal-section-title">Assumptions &amp; Sources</h3>
+                  <div className="assumptions-grid">
+                    <div>
+                      <h4 className="eq-subtitle">Real, sourced</h4>
+                      <ul className="assumptions-list">
+                        <li><b>Water footprints</b> — FABLE 2021 EmbedWaterCrop.</li>
+                        <li><b>Crop yields &amp; N rates</b> — AHDB UK typical 2020–22.</li>
+                        <li><b>N₂O factor</b> — IPCC 2019 tier-1.</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="eq-subtitle">Indicative ballpark</h4>
+                      <ul className="assumptions-list">
+                        <li><b>2040 thresholds</b> — freshwater 2,500 m³/ha, N 180 kg/ha, emissions 4.0 tCO₂e/ha.</li>
+                        <li><b>Crop prices £/t</b> — wheat 900, OSR 950, barley 750, other 700.</li>
+                        <li><b>Water revenue loss</b> — £150/ha × 40% of irrigated area.</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <h3 className="modal-section-title">Nature Scoring Logic</h3>
                   <ol className="equations-list">
                     <li>
                       <div className="eq-title">Fertiliser multiplier</div>
@@ -1110,11 +1114,6 @@ function App() {
                     <li>
                       <div className="eq-title">Freshwater load <span className="eq-note">(m³)</span></div>
                       <div className="eq">load = Σ<sub>rows</sub> [area × yield × (blue × irrigation% + grey × fertMul)]</div>
-                      <div className="eq-note-line">blue/grey water footprints from FABLE 2021 / Mekonnen-Hoekstra.</div>
-                    </li>
-                    <li>
-                      <div className="eq-title">Diversity bonus</div>
-                      <div className="eq">bonus = min(unique_crops × 3, &nbsp; 18)</div>
                     </li>
                     <li>
                       <div className="eq-title">Vector scores <span className="eq-note">(0–100)</span></div>
@@ -1124,17 +1123,14 @@ function App() {
                       <div className="eq">Biodiv = 100 − biodiv<sub>per-ha</sub> × biodivMod × 60 + bonus</div>
                       <div className="eq">Land = 100 − (totalHa / T<sub>hectarage</sub>) × 50 × landMod</div>
                     </li>
-                    <li>
-                      <div className="eq-title">Composite</div>
-                      <div className="eq">composite = ⅕ × (Land + Water + Soil + Biodiv + Supply)</div>
-                    </li>
                   </ol>
 
-                  <h3 className="modal-section-title">Financial layer</h3>
+                  <h3 className="modal-section-title">Financial Logic</h3>
                   <ol className="equations-list">
                     <li>
-                      <div className="eq-title">Crop revenue</div>
-                      <div className="eq">cropRevenue = Σ<sub>rows</sub> (ha × yield × price)</div>
+                      <div className="eq-title">Subsidy income</div>
+                      <div className="eq">subsidyIncome = cropRevenue × (dependence / (100 - dependence))</div>
+                      <div className="eq-note-line">Coupled to self-reported dependence slider to reflect business-model reliance.</div>
                     </li>
                     <li>
                       <div className="eq-title">Retention rate</div>
@@ -1146,51 +1142,21 @@ function App() {
                           <span>0.2 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if composite ≤ 50</span>
                         </span>
                       </div>
-                      <div className="eq">retention = (contract grower) ? max(0, ret − 0.4) : ret</div>
+                    </li>
+                    <li>
+                      <div className="eq-title">Subsidy at risk</div>
+                      <div className="eq">S<sub>risk</sub> = subsidyIncome × (1 - retention)</div>
                     </li>
                     <li>
                       <div className="eq-title">Cost shocks</div>
                       <div className="eq">N shock = totalHa × (N kg/ha) × 0.001 × £400/t (if Supply &lt; 75)</div>
                       <div className="eq">Water shock = irrigatedArea × 40% × £150/ha (if Water &lt; 75 &amp; stress)</div>
                     </li>
-                    <li>
-                      <div className="eq-title">Verdict threshold</div>
-                      <div className="eq">atRisk = totalImpact / (cropRevenue + subsidy + upside)</div>
-                    </li>
                   </ol>
                 </div>
               )}
 
-              {equationsTab === 'assumptions' && (
-                <div className="tab-content">
-                  <p className="modal-intro">
-                    What's real, what's indicative and what's a placeholder. The mix is
-                    deliberate — the framework is sound; per-region and per-crop tuning
-                    tightens it.
-                  </p>
 
-                  <h3 className="modal-section-title">Real, sourced</h3>
-                  <ul className="assumptions-list">
-                    <li><b>Water footprints</b> — FABLE 2021 EmbedWaterCrop.</li>
-                    <li><b>Crop yields &amp; N rates</b> — AHDB UK typical 2020–22.</li>
-                    <li><b>N₂O factor</b> — IPCC 2019 tier-1.</li>
-                  </ul>
-
-                  <h3 className="modal-section-title">Calculation logic</h3>
-                  <ul className="assumptions-list">
-                    <li><b>Diversity bonus</b> — <code>min(unique crops × 3, 18)</code>.</li>
-                    <li><b>Subsidy income</b> — <code>clamp(totalHa × £220/ha, £120, £400)</code>.</li>
-                    <li><b>Retention curve</b> — linear interpolation 0.2 to 1.0.</li>
-                  </ul>
-
-                  <h3 className="modal-section-title">Indicative ballpark</h3>
-                  <ul className="assumptions-list">
-                    <li><b>2040 thresholds</b> — freshwater 2,500 m³/ha, N 180 kg/ha, emissions 4.0 tCO₂e/ha.</li>
-                    <li><b>Crop prices £/t</b> — wheat 900, OSR 950, barley 750, other 700.</li>
-                    <li><b>Water revenue loss</b> — £150/ha × 40% of irrigated area.</li>
-                  </ul>
-                </div>
-              )}
 
               {equationsTab === 'nomenclature' && (
                 <div className="tab-content">
