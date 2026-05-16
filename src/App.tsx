@@ -180,6 +180,7 @@ function App() {
   const [planOpen, setPlanOpen] = useState(false)
   const [riskOpen, setRiskOpen] = useState(false)
   const [assumptionsOpen, setAssumptionsOpen] = useState(false)
+  const [equationsOpen, setEquationsOpen] = useState(false)
   const [analysisView, setAnalysisView] = useState<'nature' | 'financial'>('nature')
 
   useEffect(() => {
@@ -223,6 +224,20 @@ function App() {
       window.removeEventListener('keydown', onKey)
     }
   }, [assumptionsOpen])
+
+  useEffect(() => {
+    if (!equationsOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEquationsOpen(false)
+    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [equationsOpen])
 
   const projected = useMemo(() => {
     const map: Record<string, number> = {}
@@ -657,6 +672,13 @@ function App() {
             <button
               type="button"
               className="assumptions-btn"
+              onClick={() => setEquationsOpen(true)}
+            >
+              View equations
+            </button>
+            <button
+              type="button"
+              className="assumptions-btn"
               onClick={() => setAssumptionsOpen(true)}
             >
               View assumptions
@@ -975,6 +997,214 @@ function App() {
                 type="button"
                 className="modal-action"
                 onClick={() => setAssumptionsOpen(false)}
+              >
+                Close
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {equationsOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setEquationsOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="equations-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="modal-head">
+              <div>
+                <span className="modal-eyebrow">Calculation chain</span>
+                <h2 id="equations-title" className="modal-title">
+                  Equations &amp; <em>steps</em>
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setEquationsOpen(false)}
+                aria-label="Close equations panel"
+              >
+                ×
+              </button>
+            </header>
+            <p className="modal-intro">
+              Every formula the tool uses, step by step. Coefficients and bounds are
+              documented in <i>View assumptions</i>.
+            </p>
+
+            <h3 className="modal-section-title">Nature score</h3>
+            <ol className="equations-list">
+              <li>
+                <div className="eq-title">Fertiliser multiplier</div>
+                <div className="eq">fertMul = 0.4 + (fertIntensity / 100) × 1.2</div>
+              </li>
+              <li>
+                <div className="eq-title">Blue-water scale</div>
+                <div className="eq">blueScale = irrigation% / 100</div>
+              </li>
+              <li>
+                <div className="eq-title">Per crop row (summed into farm totals)</div>
+                <div className="eq">production = ha × yield<sub>t/ha</sub></div>
+                <div className="eq">N<sub>applied</sub> = ha × n<sub>kg/ha</sub> × fertMul &nbsp;&nbsp; (= 0 if fixesN)</div>
+                <div className="eq">freshwater = production × (wf<sub>blue</sub> × blueScale + wf<sub>grey</sub> × fertMul)</div>
+                <div className="eq">N₂O<sub>kgCO₂e</sub> = N<sub>applied</sub> × 0.01 × (44/28) × 298 &nbsp;&nbsp; <span className="eq-note">IPCC tier-1</span></div>
+                <div className="eq">residue<sub>kgCO₂e</sub> = ha × 500</div>
+                <div className="eq">tillageLoad ← tillageLoad + ha × tillage<sub>int</sub></div>
+                <div className="eq">monocultureLoad ← monocultureLoad + ha × biodiv<sub>int</sub></div>
+              </li>
+              <li>
+                <div className="eq-title">Per-ha intensities</div>
+                <div className="eq">x<sub>per-ha</sub> = x<sub>total</sub> / totalHa &nbsp;&nbsp; <span className="eq-note">for water, N, tillage, biodiv loads</span></div>
+              </li>
+              <li>
+                <div className="eq-title">Diversity bonus</div>
+                <div className="eq">diversityBonus = min(uniqueCrops × 3, 18)</div>
+              </li>
+              <li>
+                <div className="eq-title">Threshold adjustment (regenerative only)</div>
+                <div className="eq">T<sub>n</sub> ← T<sub>n</sub> × 1.20, &nbsp;&nbsp; T<sub>water</sub> ← T<sub>water</sub> × 1.15</div>
+              </li>
+              <li>
+                <div className="eq-title">Vector scores <span className="eq-note">(clamped 0–100)</span></div>
+                <div className="eq">Water = 100 − (water<sub>per-ha</sub> × waterMod / T<sub>water</sub>) × 50</div>
+                <div className="eq">Supply = 100 − (N<sub>per-ha</sub> / T<sub>n</sub>) × 60</div>
+                <div className="eq">Soil = 100 − tillage<sub>per-ha</sub> × soilMod × 60 − (N<sub>per-ha</sub> / T<sub>n</sub>) × 30 + diversityBonus × 0.3</div>
+                <div className="eq">Biodiv = 100 − biodiv<sub>per-ha</sub> × biodivMod × 60 + diversityBonus</div>
+                <div className="eq">Land = 100 − (totalHa / T<sub>hectarage</sub>) × 50 × landMod</div>
+              </li>
+              <li>
+                <div className="eq-title">Composite</div>
+                <div className="eq">composite = ⅕ × (Land + Water + Soil + Biodiv + Supply)</div>
+              </li>
+              <li>
+                <div className="eq-title">Band</div>
+                <div className="eq eq-cases">
+                  band = <span className="eq-cases-brace">{'{'}</span>
+                  <span className="eq-cases-rows">
+                    <span><i>Not viable</i> &nbsp;&nbsp; if composite &lt; 35</span>
+                    <span><i>At risk</i> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if 35 ≤ composite &lt; 55</span>
+                    <span><i>Adapting</i> &nbsp;&nbsp;&nbsp;&nbsp; if 55 ≤ composite &lt; 75</span>
+                    <span><i>Resilient</i> &nbsp;&nbsp;&nbsp; if composite ≥ 75</span>
+                  </span>
+                </div>
+              </li>
+            </ol>
+
+            <h3 className="modal-section-title">Financial layer</h3>
+            <ol className="equations-list">
+              <li>
+                <div className="eq-title">Crop revenue</div>
+                <div className="eq">cropRevenue = Σ<sub>rows</sub> (ha × yield × price)</div>
+                <div className="eq-note-line">prices £/t: wheat 900 · OSR 950 · barley 750 · other 700</div>
+              </li>
+              <li>
+                <div className="eq-title">Subsidy income</div>
+                <div className="eq">sd = min(subsidyDep, 95) / 100</div>
+                <div className="eq">raw = cropRevenue × sd / (1 − sd)</div>
+                <div className="eq">subsidyIncome = clamp(raw, &nbsp; 120 × totalHa, &nbsp; 400 × totalHa)</div>
+              </li>
+              <li>
+                <div className="eq-title">Retention rate</div>
+                <div className="eq eq-cases">
+                  retention = <span className="eq-cases-brace">{'{'}</span>
+                  <span className="eq-cases-rows">
+                    <span>1.0 &nbsp;&nbsp; if composite &gt; 75</span>
+                    <span>0.6 &nbsp;&nbsp; if 50 ≤ composite ≤ 75</span>
+                    <span>0.2 &nbsp;&nbsp; if composite &lt; 50</span>
+                  </span>
+                </div>
+                <div className="eq-note-line">if business model = contract grower: shift one tier down</div>
+              </li>
+              <li>
+                <div className="eq-title">Subsidy at risk</div>
+                <div className="eq">subsidyAtRisk = subsidyIncome × (1 − retention)</div>
+              </li>
+              <li>
+                <div className="eq-title">N cost shock <span className="eq-note">— fires only when Supply &lt; 75</span></div>
+                <div className="eq">nCostShock = totalHa × (N kg/ha) × 0.001 × £100/t</div>
+              </li>
+              <li>
+                <div className="eq-title">Water revenue loss <span className="eq-note">— fires only when Water &lt; 75 AND region ∈ &#123;East England, East Mids, South East&#125;</span></div>
+                <div className="eq">waterRevenueLoss = totalHa × (irrigation% / 100) × 0.4 × £150/ha</div>
+              </li>
+              <li>
+                <div className="eq-title">ELM uplift</div>
+                <div className="eq eq-cases">
+                  elmRate = <span className="eq-cases-brace">{'{'}</span>
+                  <span className="eq-cases-rows">
+                    <span>£600/ha &nbsp;&nbsp; if composite &gt; 85</span>
+                    <span>£400/ha &nbsp;&nbsp; if 75 &lt; composite ≤ 85</span>
+                    <span>£200/ha &nbsp;&nbsp; if 60 &lt; composite ≤ 75</span>
+                    <span>£0 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; otherwise</span>
+                  </span>
+                </div>
+                <div className="eq">elmUplift = elmRate × totalHa</div>
+              </li>
+              <li>
+                <div className="eq-title">BNG income</div>
+                <div className="eq">eligible = (model ∈ &#123;regen, diversified&#125;) ∧ (biodiv &gt; 60)</div>
+                <div className="eq">bngRate = (biodiv &gt; 75) ? £50/ha : £25/ha</div>
+                <div className="eq">bngIncome = eligible ? bngRate × totalHa : 0</div>
+              </li>
+              <li>
+                <div className="eq-title">Regenerative premium</div>
+                <div className="eq">regenPremium = (model = regen) ? cropRevenue × 0.10 : 0</div>
+              </li>
+              <li>
+                <div className="eq-title">Roll-up</div>
+                <div className="eq">transitionUpside = elmUplift + bngIncome + regenPremium</div>
+                <div className="eq">totalRevenue = cropRevenue + subsidyIncome + transitionUpside</div>
+                <div className="eq">totalImpact = subsidyAtRisk + nCostShock + waterRevenueLoss</div>
+                <div className="eq">netMarginImpactPerHa = totalImpact / totalHa</div>
+                <div className="eq">upsidePerHa = transitionUpside / totalHa</div>
+                <div className="eq">netPositionPerHa = upsidePerHa − netMarginImpactPerHa</div>
+                <div className="eq">impactPctRevenue = totalImpact / totalRevenue</div>
+              </li>
+              <li>
+                <div className="eq-title">Verdict</div>
+                <div className="eq">structuralAt = (model = diversified) ? 0.25 : 0.20</div>
+                <div className="eq eq-cases">
+                  verdict = <span className="eq-cases-brace">{'{'}</span>
+                  <span className="eq-cases-rows">
+                    <span><i>Structural risk</i> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; if impactPctRevenue ≥ structuralAt</span>
+                    <span><i>Needs transformation</i> &nbsp; if 0.10 ≤ impactPctRevenue &lt; structuralAt</span>
+                    <span><i>Viable with adaptation</i> if impactPctRevenue &lt; 0.10</span>
+                  </span>
+                </div>
+              </li>
+              <li>
+                <div className="eq-title">Lending flags <span className="eq-note">(each independent)</span></div>
+                <div className="eq">(Supply &lt; 50) ∧ (subsidyDep &gt; 50) &nbsp;→&nbsp; NatWest / Lloyds exclusion</div>
+                <div className="eq">(Water &lt; 50) ∧ (region water-stressed) &nbsp;→&nbsp; green-loan covenant</div>
+                <div className="eq">(model = high-input commodity) ∧ (composite &lt; 50) &nbsp;→&nbsp; EIB / UKIB exclusion</div>
+              </li>
+            </ol>
+
+            <h3 className="modal-section-title">Projected scenario <span className="eq-note">(Transition Plan modal)</span></h3>
+            <ol className="equations-list">
+              <li>
+                <div className="eq-title">Projected vector scores</div>
+                <div className="eq">v<sub>projected</sub> = clamp(v<sub>current</sub> + Σ<sub>levers</sub> lever.impact[v], &nbsp; 0, &nbsp; 100)</div>
+              </li>
+              <li>
+                <div className="eq-title">Projected viability</div>
+                <div className="eq-note-line">Re-run the entire financial layer against the lifted vector scores.</div>
+                <div className="eq">savings/yr = totalImpact<sub>current</sub> − totalImpact<sub>projected</sub></div>
+              </li>
+            </ol>
+
+            <footer className="modal-foot">
+              <button
+                type="button"
+                className="modal-action"
+                onClick={() => setEquationsOpen(false)}
               >
                 Close
               </button>

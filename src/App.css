@@ -1207,6 +1207,7 @@
   padding-top: 14px;
   display: flex;
   justify-content: flex-end;
+  gap: 18px;
 }
 
 .assumptions-btn {
@@ -1267,6 +1268,99 @@
 .assumptions-list b {
   color: var(--moss-800);
   font-weight: 600;
+}
+
+.equations-list {
+  margin: 0 0 6px;
+  padding-left: 24px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--moss-900);
+  counter-reset: eq-step;
+}
+
+.equations-list > li {
+  margin-bottom: 18px;
+}
+
+.eq-title {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.6px;
+  font-weight: 600;
+  color: var(--moss-700);
+  margin-bottom: 6px;
+}
+
+.eq-title .eq-note,
+.eq-note {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--mist);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.eq-note-line {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--mist);
+  margin: 4px 0 4px 4px;
+}
+
+.eq {
+  font-family: 'Latin Modern Math', 'STIX Two Math', 'Cambria Math', Cambria, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--moss-900);
+  background: rgba(67, 104, 67, 0.04);
+  border-left: 2px solid rgba(67, 104, 67, 0.22);
+  border-radius: 0 4px 4px 0;
+  padding: 5px 14px;
+  margin: 4px 0;
+  font-feature-settings: 'tnum', 'lnum';
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.eq sub {
+  font-size: 0.72em;
+  vertical-align: sub;
+  font-style: italic;
+}
+
+.eq-cases {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.eq-cases-brace {
+  font-size: 38px;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--moss-700);
+  font-style: normal;
+  transform: translateY(-1px);
+}
+
+.eq-cases-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.eq-cases-rows span {
+  display: block;
+}
+
+.eq-cases-rows i {
+  font-style: italic;
+  color: var(--moss-800);
 }
 
 .verdict-pill {
@@ -1396,24 +1490,74 @@
   color: #a14a3a;
 }
 
-/* Revenue stacked bar */
+/* Revenue stacked bar + legend */
+.revbar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 6px 0 4px;
+}
+
+.revbar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.revbar-axis-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--moss-600);
+  font-weight: 600;
+}
+
 .revbar {
   width: 100%;
   height: auto;
   display: block;
-  margin: 6px 0 4px;
-}
-
-.revbar-axis {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  fill: var(--moss-600);
-  font-weight: 600;
 }
 
 .revbar-track {
   fill: rgba(67, 104, 67, 0.06);
+}
+
+.revbar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11.5px;
+  color: var(--moss-800);
+}
+
+.revbar-legend-empty {
+  font-size: 11.5px;
+  color: var(--mist);
+  font-style: italic;
+}
+
+.revbar-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.revbar-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.revbar-legend-label {
+  color: var(--moss-800);
+}
+
+.revbar-legend-value {
+  color: var(--mist);
+  font-feature-settings: 'tnum';
 }
 
 .viability-flags {
