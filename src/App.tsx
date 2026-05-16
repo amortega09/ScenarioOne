@@ -17,8 +17,8 @@ import {
   type VectorResult,
   type Band,
 } from './model'
-import { RevenueBar } from './RevenueBar'
-import { ViabilityTimeline } from './ViabilityTimeline'
+import { RevenueBar } from './components/RevenueBar'
+import { ViabilityTimeline } from './components/ViabilityTimeline'
 
 const DEFAULT_INPUTS: FarmInputs = {
   region: 'east_england',

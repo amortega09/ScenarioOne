@@ -1,4 +1,4 @@
-import { type BusinessViability } from './model'
+import { type BusinessViability } from '../model'
 
 type Segment = { key: string; label: string; value: number; color: string }
 

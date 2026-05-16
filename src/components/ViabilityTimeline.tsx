@@ -1,4 +1,4 @@
-import { type BusinessProjection } from './model'
+import { type BusinessProjection } from '../model'
 
 type ViabilityTimelineProps = {
   projection: BusinessProjection
