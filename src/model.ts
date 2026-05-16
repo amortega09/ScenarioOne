@@ -702,17 +702,13 @@ export function computeBusinessViability(
   }
 
   // === Subsidy ===
-  // Decoupled from crop revenue. UK BPS / SFI are area payments, not output-linked, so
-  // we use a flat baseline per-ha rate clamped to UK reality (£120 SFI floor → £400
-  // BPS+SFI stacked ceiling). The subsidyDependence slider no longer back-solves the
-  // subsidy line — it stays as a self-reported value used in the NatWest/Lloyds
-  // lending-flag check (a high reported reliance + N stress signals lender exclusion).
-  const BASELINE_SUBSIDY_PER_HA = 220 // £/ha — mid of £120-400 envelope
-  const subsidyIncome = clamp(
-    totalHa * BASELINE_SUBSIDY_PER_HA,
-    120 * totalHa,
-    400 * totalHa,
-  )
+  // Coupled to the subsidyDependence slider (Option B).
+  // Formula: subsidyIncome = cropRevenue * (dep / (100 - dep))
+  // This ensures the baseline subsidy matches the user's self-reported dependency.
+  const dep = input.subsidyDependence
+  const subsidyIncome = dep >= 100 
+    ? cropRevenue * 10 // Cap at 10x crop revenue if 100% (avoid div by zero)
+    : cropRevenue * (dep / (100 - dep))
 
   // === Transition upside (revenue gates that open under nature-positive trajectories) ===
   const biodivScore = vectors.find((v) => v.key === 'biodiv')!.score
