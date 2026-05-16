@@ -62,23 +62,27 @@ export const BUSINESS_MODELS: BusinessModel[] = [
 type Region = {
   key: RegionKey
   label: string
-  waterMod: number   // catchment stress multiplier (higher = drier)
-  biodivMod: number  // habitat-pressure multiplier
-  landMod: number    // protected-area / land-pressure multiplier
+  waterMod: number       // catchment stress multiplier (higher = drier)
+  biodivMod: number      // habitat-pressure multiplier
+  landMod: number        // protected-area / land-pressure multiplier
+  waterStressed: boolean // localised catchment flag — over-abstracted aquifers /
+                         // serious chalk-stream pressure. Aligned with EA Catchment
+                         // Data Explorer / ENCA stressed-catchment regions. To be
+                         // refined to sub-catchment granularity later.
 }
 
 export const REGIONS: Region[] = [
-  { key: 'east_england',     label: 'East of England',    waterMod: 1.4, biodivMod: 1.3, landMod: 1.2 },
-  { key: 'south_east',       label: 'South East',         waterMod: 1.3, biodivMod: 1.2, landMod: 1.3 },
-  { key: 'south_west',       label: 'South West',         waterMod: 0.9, biodivMod: 1.1, landMod: 1.0 },
-  { key: 'east_midlands',    label: 'East Midlands',      waterMod: 1.1, biodivMod: 1.0, landMod: 1.1 },
-  { key: 'west_midlands',    label: 'West Midlands',      waterMod: 0.9, biodivMod: 1.0, landMod: 1.0 },
-  { key: 'yorkshire',        label: 'Yorkshire & Humber', waterMod: 1.0, biodivMod: 0.9, landMod: 1.0 },
-  { key: 'north_east',       label: 'North East',         waterMod: 0.8, biodivMod: 0.9, landMod: 0.9 },
-  { key: 'north_west',       label: 'North West',         waterMod: 0.7, biodivMod: 1.0, landMod: 0.9 },
-  { key: 'scotland',         label: 'Scotland',           waterMod: 0.7, biodivMod: 1.1, landMod: 1.0 },
-  { key: 'wales',            label: 'Wales',              waterMod: 0.8, biodivMod: 1.1, landMod: 1.0 },
-  { key: 'northern_ireland', label: 'Northern Ireland',   waterMod: 0.8, biodivMod: 1.0, landMod: 0.9 },
+  { key: 'east_england',     label: 'East of England',    waterMod: 1.4, biodivMod: 1.3, landMod: 1.2, waterStressed: true  },
+  { key: 'south_east',       label: 'South East',         waterMod: 1.3, biodivMod: 1.2, landMod: 1.3, waterStressed: true  },
+  { key: 'south_west',       label: 'South West',         waterMod: 0.9, biodivMod: 1.1, landMod: 1.0, waterStressed: true  }, // Wessex chalk streams
+  { key: 'east_midlands',    label: 'East Midlands',      waterMod: 1.1, biodivMod: 1.0, landMod: 1.1, waterStressed: true  },
+  { key: 'west_midlands',    label: 'West Midlands',      waterMod: 0.9, biodivMod: 1.0, landMod: 1.0, waterStressed: false },
+  { key: 'yorkshire',        label: 'Yorkshire & Humber', waterMod: 1.0, biodivMod: 0.9, landMod: 1.0, waterStressed: false },
+  { key: 'north_east',       label: 'North East',         waterMod: 0.8, biodivMod: 0.9, landMod: 0.9, waterStressed: false },
+  { key: 'north_west',       label: 'North West',         waterMod: 0.7, biodivMod: 1.0, landMod: 0.9, waterStressed: false },
+  { key: 'scotland',         label: 'Scotland',           waterMod: 0.7, biodivMod: 1.1, landMod: 1.0, waterStressed: false },
+  { key: 'wales',            label: 'Wales',              waterMod: 0.8, biodivMod: 1.1, landMod: 1.0, waterStressed: false },
+  { key: 'northern_ireland', label: 'Northern Ireland',   waterMod: 0.8, biodivMod: 1.0, landMod: 0.9, waterStressed: false },
 ]
 
 type Crop = {
@@ -95,20 +99,24 @@ type Crop = {
   // Hand-tuned 0-1 proxy until better data
   tillage_intensity: number
   biodiv_intensity: number
+  // Per-crop residue + tillage + cultivation emissions, kgCO₂e/ha. Replaces a flat
+  // 500 constant — biomass and residue composition differ materially across crops
+  // (high-biomass maize and OSR vs. removed root crops like potatoes / sugar beet).
+  residue_kgco2e_ha: number
 }
 
 export const CROPS: Crop[] = [
-  { key: 'wheat',       label: 'Winter wheat', yield_t_ha:  8.0, n_kg_ha: 180, fixesN: false, wf_green_m3_t: 1665, wf_blue_m3_t: 710,  wf_grey_m3_t: 142,  tillage_intensity: 0.6, biodiv_intensity: 0.6 },
-  { key: 'barley',      label: 'Barley',       yield_t_ha:  6.5, n_kg_ha: 120, fixesN: false, wf_green_m3_t: 2539, wf_blue_m3_t: 751,  wf_grey_m3_t: 215,  tillage_intensity: 0.5, biodiv_intensity: 0.5 },
-  { key: 'oats',        label: 'Oats',         yield_t_ha:  5.5, n_kg_ha: 100, fixesN: false, wf_green_m3_t: 1902, wf_blue_m3_t:  88,  wf_grey_m3_t: 439,  tillage_intensity: 0.4, biodiv_intensity: 0.3 },
-  { key: 'osr',         label: 'Oilseed rape', yield_t_ha:  3.3, n_kg_ha: 220, fixesN: false, wf_green_m3_t: 3030, wf_blue_m3_t: 768,  wf_grey_m3_t: 344,  tillage_intensity: 0.6, biodiv_intensity: 0.7 },
-  { key: 'sugar_beet',  label: 'Sugar beet',   yield_t_ha: 80.0, n_kg_ha:  90, fixesN: false, wf_green_m3_t:   92, wf_blue_m3_t:   1,  wf_grey_m3_t:  37,  tillage_intensity: 0.9, biodiv_intensity: 0.6 },
-  { key: 'potatoes',    label: 'Potatoes',     yield_t_ha: 45.0, n_kg_ha: 170, fixesN: false, wf_green_m3_t:  339, wf_blue_m3_t:  73,  wf_grey_m3_t:  40,  tillage_intensity: 0.9, biodiv_intensity: 0.6 },
-  { key: 'field_beans', label: 'Field beans',  yield_t_ha:  4.0, n_kg_ha:   0, fixesN: true,  wf_green_m3_t: 3533, wf_blue_m3_t: 329,  wf_grey_m3_t: 726,  tillage_intensity: 0.4, biodiv_intensity: 0.2 },
-  { key: 'peas',        label: 'Peas',         yield_t_ha:  3.8, n_kg_ha:   0, fixesN: true,  wf_green_m3_t: 3533, wf_blue_m3_t: 329,  wf_grey_m3_t: 726,  tillage_intensity: 0.4, biodiv_intensity: 0.2 },
-  { key: 'maize',       label: 'Forage maize', yield_t_ha: 40.0, n_kg_ha: 130, fixesN: false, wf_green_m3_t: 1832, wf_blue_m3_t:  95,  wf_grey_m3_t: 237,  tillage_intensity: 0.8, biodiv_intensity: 0.7 },
-  { key: 'linseed',     label: 'Linseed',      yield_t_ha:  2.2, n_kg_ha:  80, fixesN: false, wf_green_m3_t: 5206, wf_blue_m3_t: 1380, wf_grey_m3_t:   0,  tillage_intensity: 0.5, biodiv_intensity: 0.4 },
-  { key: 'rye',         label: 'Rye',          yield_t_ha:  4.5, n_kg_ha:  90, fixesN: false, wf_green_m3_t: 2665, wf_blue_m3_t:   0,  wf_grey_m3_t: 1672, tillage_intensity: 0.4, biodiv_intensity: 0.3 },
+  { key: 'wheat',       label: 'Winter wheat', yield_t_ha:  8.0, n_kg_ha: 180, fixesN: false, wf_green_m3_t: 1665, wf_blue_m3_t: 710,  wf_grey_m3_t: 142,  tillage_intensity: 0.6, biodiv_intensity: 0.6, residue_kgco2e_ha: 500 },
+  { key: 'barley',      label: 'Barley',       yield_t_ha:  6.5, n_kg_ha: 120, fixesN: false, wf_green_m3_t: 2539, wf_blue_m3_t: 751,  wf_grey_m3_t: 215,  tillage_intensity: 0.5, biodiv_intensity: 0.5, residue_kgco2e_ha: 450 },
+  { key: 'oats',        label: 'Oats',         yield_t_ha:  5.5, n_kg_ha: 100, fixesN: false, wf_green_m3_t: 1902, wf_blue_m3_t:  88,  wf_grey_m3_t: 439,  tillage_intensity: 0.4, biodiv_intensity: 0.3, residue_kgco2e_ha: 420 },
+  { key: 'osr',         label: 'Oilseed rape', yield_t_ha:  3.3, n_kg_ha: 220, fixesN: false, wf_green_m3_t: 3030, wf_blue_m3_t: 768,  wf_grey_m3_t: 344,  tillage_intensity: 0.6, biodiv_intensity: 0.7, residue_kgco2e_ha: 650 },
+  { key: 'sugar_beet',  label: 'Sugar beet',   yield_t_ha: 80.0, n_kg_ha:  90, fixesN: false, wf_green_m3_t:   92, wf_blue_m3_t:   1,  wf_grey_m3_t:  37,  tillage_intensity: 0.9, biodiv_intensity: 0.6, residue_kgco2e_ha: 280 },
+  { key: 'potatoes',    label: 'Potatoes',     yield_t_ha: 45.0, n_kg_ha: 170, fixesN: false, wf_green_m3_t:  339, wf_blue_m3_t:  73,  wf_grey_m3_t:  40,  tillage_intensity: 0.9, biodiv_intensity: 0.6, residue_kgco2e_ha: 260 },
+  { key: 'field_beans', label: 'Field beans',  yield_t_ha:  4.0, n_kg_ha:   0, fixesN: true,  wf_green_m3_t: 3533, wf_blue_m3_t: 329,  wf_grey_m3_t: 726,  tillage_intensity: 0.4, biodiv_intensity: 0.2, residue_kgco2e_ha: 380 },
+  { key: 'peas',        label: 'Peas',         yield_t_ha:  3.8, n_kg_ha:   0, fixesN: true,  wf_green_m3_t: 3533, wf_blue_m3_t: 329,  wf_grey_m3_t: 726,  tillage_intensity: 0.4, biodiv_intensity: 0.2, residue_kgco2e_ha: 360 },
+  { key: 'maize',       label: 'Forage maize', yield_t_ha: 40.0, n_kg_ha: 130, fixesN: false, wf_green_m3_t: 1832, wf_blue_m3_t:  95,  wf_grey_m3_t: 237,  tillage_intensity: 0.8, biodiv_intensity: 0.7, residue_kgco2e_ha: 720 },
+  { key: 'linseed',     label: 'Linseed',      yield_t_ha:  2.2, n_kg_ha:  80, fixesN: false, wf_green_m3_t: 5206, wf_blue_m3_t: 1380, wf_grey_m3_t:   0,  tillage_intensity: 0.5, biodiv_intensity: 0.4, residue_kgco2e_ha: 380 },
+  { key: 'rye',         label: 'Rye',          yield_t_ha:  4.5, n_kg_ha:  90, fixesN: false, wf_green_m3_t: 2665, wf_blue_m3_t:   0,  wf_grey_m3_t: 1672, tillage_intensity: 0.4, biodiv_intensity: 0.3, residue_kgco2e_ha: 450 },
 ]
 
 type Soil = { key: SoilTypeKey; label: string; mod: number }
@@ -231,25 +239,15 @@ function bandFor(score: number): Band {
   }
 }
 
-// Per-business-model loosening of vector thresholds. Regenerative gets a 20% wider
-// N envelope and 15% wider freshwater envelope to reflect cover-cropping + reduced
-// blue abstraction in that model. Other models keep baseline thresholds.
-function thresholdsFor(bm: BusinessModelKey) {
-  if (bm === 'regenerative') {
-    return {
-      freshwater_m3_ha: T.freshwater_m3_ha * 1.15,
-      n_kg_ha: T.n_kg_ha * 1.2,
-      emissions: T.emissions,
-      hectarage: T.hectarage,
-    }
-  }
-  return { ...T }
-}
+// Ecological thresholds are uniform across business models. Earlier versions widened the
+// N and freshwater envelopes for regenerative operations, which artificially inflated
+// scores rather than letting lower actual inputs prove viability. A nature-positive
+// 2040 baseline is the same number for everyone; the model proves itself on N_per_ha,
+// not on a grading curve.
 
 export function computeAssessment(input: FarmInputs): Assessment {
   const region = REGIONS.find((r) => r.key === input.region)!
   const soil = SOIL_TYPES.find((s) => s.key === input.soilType)!
-  const Tx = thresholdsFor(input.businessModelType)
   const filled = input.crops
     .map((c) => ({ row: c, crop: CROPS.find((cc) => cc.key === c.crop) }))
     .filter((c): c is { row: CropRow; crop: Crop } => !!c.crop && c.row.hectares > 0)
@@ -257,8 +255,12 @@ export function computeAssessment(input: FarmInputs): Assessment {
   const totalHa = filled.reduce((s, c) => s + c.row.hectares, 0)
 
   // Fertiliser intensity scales N application and grey-water (pollution-dilution) load.
-  // 65 ≈ UK baseline; range 0.4–1.6× of UK reference rates.
-  const fertMul = 0.4 + (input.fertiliserIntensity / 100) * 1.2
+  // 65 ≈ UK baseline; range 0.4–1.6× of UK reference rates. Zero-input is explicit
+  // (otherwise the formula would penalise organic systems with a 40% minimum loading).
+  const fertMul =
+    input.fertiliserIntensity > 0
+      ? 0.4 + (input.fertiliserIntensity / 100) * 1.2
+      : 0
 
   // === Production-based aggregates (FABLE-style) ===
   let production_t = 0
@@ -285,7 +287,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
 
     // IPCC tier-1: 1% of synthetic N → N₂O-N, × 44/28 → N₂O, × 298 → CO₂e.
     const fertEmissions = n_kg * 0.01 * (44 / 28) * 298
-    const residueEmissions = ha * 500 // ~500 kgCO₂e/ha for residues, tillage, cultivation
+    const residueEmissions = ha * crop.residue_kgco2e_ha
     const emissions = fertEmissions + residueEmissions
 
     production_t += prod_t
@@ -310,19 +312,19 @@ export function computeAssessment(input: FarmInputs): Assessment {
   // === Vector scores: each starts at 100 and loses 50 when at threshold ===
   // Catchment stress modifier applies at the score layer, not the absolute load.
   const waterScore = clamp(
-    100 - ((water_per_ha * region.waterMod) / Tx.freshwater_m3_ha) * 50,
+    100 - ((water_per_ha * region.waterMod) / T.freshwater_m3_ha) * 50,
     0,
     100,
   )
 
   // Supply = synthetic-N exposure. Heavier penalty than soil because of input-restriction risk.
-  const supplyScore = clamp(100 - (n_per_ha / Tx.n_kg_ha) * 60, 0, 100)
+  const supplyScore = clamp(100 - (n_per_ha / T.n_kg_ha) * 60, 0, 100)
 
   // Soil = tillage + N intensity, modulated by soil type (peaty most fragile).
   const soilScore = clamp(
     100 -
       (tillage_per_ha * soil.mod * 60 +
-        (n_per_ha / Tx.n_kg_ha) * 30) +
+        (n_per_ha / T.n_kg_ha) * 30) +
       diversityBonus * 0.3,
     0,
     100,
@@ -337,13 +339,13 @@ export function computeAssessment(input: FarmInputs): Assessment {
 
   // Land = farm size × regional pressure, saturating at T.hectarage.
   const landScore = clamp(
-    100 - (totalHa / Tx.hectarage) * 50 * region.landMod,
+    100 - (totalHa / T.hectarage) * 50 * region.landMod,
     0,
     100,
   )
 
   // === Emissions optionally informs supply (transition-risk signal) ===
-  const emissionsOver = emissions_per_ha > Tx.emissions
+  const emissionsOver = emissions_per_ha > T.emissions
 
   const vectors: VectorResult[] = [
     {
@@ -352,7 +354,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(landScore),
       deficit:
         landScore < 60
-          ? `${Math.round(totalHa)} ha exceeds the regional 2040 land-pressure envelope (${Math.round(Tx.hectarage / region.landMod)} ha threshold).`
+          ? `${Math.round(totalHa)} ha exceeds the regional 2040 land-pressure envelope (${Math.round(T.hectarage / region.landMod)} ha threshold).`
           : null,
     },
     {
@@ -361,7 +363,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(waterScore),
       deficit:
         waterScore < 60
-          ? `Freshwater load of ${Math.round(water_per_ha).toLocaleString('en-GB')} m³/ha (blue + grey) — ${Math.round((water_per_ha * region.waterMod / Tx.freshwater_m3_ha - 1) * 100)}% above the 2040 catchment & pollution ceiling.`
+          ? `Freshwater load of ${Math.round(water_per_ha).toLocaleString('en-GB')} m³/ha (blue + grey) — ${Math.round((water_per_ha * region.waterMod / T.freshwater_m3_ha - 1) * 100)}% above the 2040 catchment & pollution ceiling.`
           : null,
     },
     {
@@ -388,7 +390,7 @@ export function computeAssessment(input: FarmInputs): Assessment {
       score: Math.round(supplyScore),
       deficit:
         supplyScore < 60
-          ? `Synthetic-N at ${Math.round(n_per_ha)} kg/ha — above the 2040 input-restriction envelope (${Math.round(Tx.n_kg_ha)} kg/ha).${emissionsOver ? ` Field emissions ${emissions_per_ha.toFixed(1)} tCO₂e/ha breach the 4.0 ceiling.` : ''}`
+          ? `Synthetic-N at ${Math.round(n_per_ha)} kg/ha — above the 2040 input-restriction envelope (${Math.round(T.n_kg_ha)} kg/ha).${emissionsOver ? ` Field emissions ${emissions_per_ha.toFixed(1)} tCO₂e/ha breach the 4.0 ceiling.` : ''}`
           : null,
     },
   ]
@@ -573,12 +575,6 @@ export type BusinessProjection = {
   }
 }
 
-const WATER_STRESSED_REGIONS: ReadonlyArray<RegionKey> = [
-  'east_england',
-  'east_midlands',
-  'south_east',
-]
-
 function verdictFor(
   pct: number,
   bm: BusinessModelKey,
@@ -596,17 +592,19 @@ function verdictFor(
 }
 
 function retentionFor(compositeScore: number, bm: BusinessModelKey): number {
-  // Baseline ELM/SFI retention by composite spider score.
+  // Linear interpolation across composite 50–75 — replaces an earlier step function
+  // whose discrete tiers (1.0 / 0.6 / 0.2) created cliff-edge financial losses for
+  // tiny score fluctuations. Anchors are unchanged: 0.2 floor below 50, full retention
+  // at and above 75; the interior 50–75 band now scales smoothly.
   let r: number
-  if (compositeScore > 75) r = 1.0
-  else if (compositeScore >= 50) r = 0.6
-  else r = 0.2
-  // Contract growers carry less direct entitlement and lose a tier of retention.
-  if (bm === 'contract_grower') {
-    if (r === 1.0) r = 0.6
-    else if (r === 0.6) r = 0.2
-    else r = 0.0
-  }
+  if (compositeScore >= 75) r = 1.0
+  else if (compositeScore <= 50) r = 0.2
+  else r = 0.2 + ((compositeScore - 50) / 25) * 0.8
+  // Contract growers operate under rigid, short-term commercial delivery agreements
+  // with third-party brands. They lack the operational and land-equity flexibility to
+  // pivot rapidly to landscape-scale nature restoration, so a flat 0.4 penalty is
+  // applied (approximately one "tier" in the old scheme) to reflect that constraint.
+  if (bm === 'contract_grower') r = Math.max(0, r - 0.4)
   return r
 }
 
@@ -629,19 +627,17 @@ export function computeBusinessViability(
   }
 
   // === Subsidy ===
-  // Solve subsidyIncome / (cropRevenue + subsidyIncome) = sd, clamped to avoid /0 at 100%.
-  // The dependence slider reflects today's revenue mix; transition upside is added on top,
-  // not back-solved into the dependence ratio.
-  // Bounded per-ha to UK reality: £120/ha floor (SFI base), £400/ha ceiling (BPS-era +
-  // stacked SFI base options upper bound). Without the ceiling, the back-solve produces
-  // figures that scale with crop revenue and quickly exceed actual UK subsidy receipts
-  // for high-revenue arable — bloating subsidy-at-risk and dominating the verdict.
-  const sd = clamp(input.subsidyDependence, 0, 95) / 100
-  const rawSubsidy = sd > 0 ? (cropRevenue / (1 - sd)) * sd : 0
-  const subsidyFloor = sd > 0 ? 120 * totalHa : 0
-  const subsidyCeiling = sd > 0 ? 400 * totalHa : 0
-  const subsidyIncome =
-    sd > 0 ? clamp(rawSubsidy, subsidyFloor, subsidyCeiling) : 0
+  // Decoupled from crop revenue. UK BPS / SFI are area payments, not output-linked, so
+  // we use a flat baseline per-ha rate clamped to UK reality (£120 SFI floor → £400
+  // BPS+SFI stacked ceiling). The subsidyDependence slider no longer back-solves the
+  // subsidy line — it stays as a self-reported value used in the NatWest/Lloyds
+  // lending-flag check (a high reported reliance + N stress signals lender exclusion).
+  const BASELINE_SUBSIDY_PER_HA = 220 // £/ha — mid of £120-400 envelope
+  const subsidyIncome = clamp(
+    totalHa * BASELINE_SUBSIDY_PER_HA,
+    120 * totalHa,
+    400 * totalHa,
+  )
 
   // === Transition upside (revenue gates that open under nature-positive trajectories) ===
   const biodivScore = vectors.find((v) => v.key === 'biodiv')!.score
@@ -652,8 +648,12 @@ export function computeBusinessViability(
   else if (compositeScore > 60) elmRate = 200
   const elmUplift = elmRate * totalHa
 
-  // BNG income — order-of-magnitude only. Gated on business model (only regen/diversified
-  // realistically register units) AND biodiv vector signalling habitat capacity exists.
+  // BNG / private ecosystem services — annualised tranche.
+  // In reality BNG operates as upfront sale of biodiversity units to developers under
+  // 30-year covenants (typical £20-50k per unit). The £25/£50 per ha here represents
+  // that capitalised value amortised across the 30-year hold, not a recurring income
+  // stream. Gated on business model (only regen/diversified realistically register
+  // units) AND biodiv vector signalling habitat capacity exists.
   const bngEligible =
     (input.businessModelType === 'regenerative' ||
       input.businessModelType === 'diversified') && biodivScore > 60
@@ -673,14 +673,18 @@ export function computeBusinessViability(
 
   // === N price shock (only fires when Supply vector is amber or rust) ===
   // Per-ha N rate is derivable from total N applied / total area; reuses model output.
+  // Shock factor £400/t reflects an aggressive 2040 carbon + nutrient taxation regime
+  // (CBAM full-phase + UK nutrient tax) on synthetic nitrogen — not just the CBAM-only
+  // CBAM-only delta. Triggers a meaningful financial signal under input-restriction.
   const n_kg_per_ha = totalHa > 0 ? (assessment.totals.n_applied_t * 1000) / totalHa : 0
-  const N_PRICE_DELTA_PER_T = 380 - 280 // £/t — 2040 carbon-priced nitrogen uplift
+  const N_PRICE_DELTA_PER_T = 400 // £/t — 2040 aggressive scenario tax/price uplift
   const nCostShock =
     nScore < 75 ? totalHa * n_kg_per_ha * 0.001 * N_PRICE_DELTA_PER_T : 0
 
-  // === Water revenue loss (abstraction tightening in water-stressed regions) ===
+  // === Water revenue loss (abstraction tightening in water-stressed catchments) ===
   const irrigatedHa = totalHa * (input.irrigationPct / 100)
-  const waterRegion = WATER_STRESSED_REGIONS.includes(input.region)
+  const regionRecord = REGIONS.find((r) => r.key === input.region)!
+  const waterRegion = regionRecord.waterStressed
   const waterRevenueLoss =
     waterScore < 75 && waterRegion ? irrigatedHa * 0.4 * 150 : 0
 
@@ -760,7 +764,7 @@ export function computeBusinessProjection(
   const biodivRisk = clamp((75 - biodivScore) / 75, 0, 1)
   const landRisk = clamp((75 - landScore) / 75, 0, 1)
   const natureRisk = clamp((75 - assessment.score) / 75, 0, 1)
-  const waterRegion = WATER_STRESSED_REGIONS.includes(input.region)
+  const waterRegion = region.waterStressed
   const landCapitalRate2040 =
     0.018 + 0.012 * landRisk + (input.businessModelType === 'high_input_commodity' ? 0.004 : 0)
   const waterCostPerM32040 =
