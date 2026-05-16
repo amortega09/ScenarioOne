@@ -139,8 +139,33 @@
 }
 
 @media (max-width: 900px) {
+  .app {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    padding-bottom: 24px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .header-tag {
+    white-space: normal;
+    text-align: left;
+    letter-spacing: 1.5px;
+  }
+
   .grid {
     grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .card {
+    height: auto;
+    overflow: visible;
   }
 }
 
@@ -1558,6 +1583,144 @@
 .revbar-legend-value {
   color: var(--mist);
   font-feature-settings: 'tnum';
+}
+
+/* 2026-2040 viability timeline */
+.timeline-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  background: rgba(244, 247, 242, 0.55);
+  border: 1px solid rgba(67, 104, 67, 0.1);
+  border-radius: var(--radius-md);
+}
+
+.timeline-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.timeline-summary > div {
+  min-width: 0;
+}
+
+.timeline-kicker {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: var(--mist);
+}
+
+.timeline-summary strong {
+  display: block;
+  font-family: 'Instrument Serif', 'Fraunces', serif;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.05;
+  color: var(--moss-800);
+  font-feature-settings: 'tnum';
+  overflow-wrap: anywhere;
+}
+
+.timeline-ok {
+  color: var(--moss-700) !important;
+}
+
+.timeline-risk {
+  color: #a14a3a !important;
+}
+
+.timeline {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.timeline-bg {
+  fill: rgba(255, 255, 255, 0.75);
+}
+
+.timeline-grid {
+  stroke: rgba(67, 104, 67, 0.09);
+  stroke-width: 1;
+}
+
+.timeline-tick,
+.timeline-year,
+.timeline-legend {
+  font-size: 11px;
+  fill: var(--mist);
+  font-feature-settings: 'tnum';
+}
+
+.timeline-legend {
+  font-weight: 600;
+}
+
+.timeline-line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.timeline-revenue {
+  stroke: var(--moss-600);
+}
+
+.timeline-costs {
+  stroke: #a14a3a;
+}
+
+.timeline-margin-pos {
+  fill: rgba(90, 132, 85, 0.12);
+}
+
+.timeline-margin-neg {
+  fill: rgba(161, 74, 58, 0.11);
+}
+
+.timeline-dot {
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.timeline-dot-revenue {
+  fill: var(--moss-600);
+}
+
+.timeline-dot-costs {
+  fill: #a14a3a;
+}
+
+.timeline-break-line {
+  stroke: #a14a3a;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.timeline-break-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  fill: #a14a3a;
+}
+
+.timeline-note {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--mist);
+}
+
+@media (max-width: 640px) {
+  .timeline-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 .viability-flags {

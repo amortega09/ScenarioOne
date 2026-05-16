@@ -7,6 +7,7 @@ import {
   BUSINESS_MODELS,
   computeAssessment,
   computeBusinessViability,
+  computeBusinessProjection,
   type FarmInputs,
   type CropRow,
   type CropKey,
@@ -17,6 +18,7 @@ import {
   type Band,
 } from './model'
 import { RevenueBar } from './RevenueBar'
+import { ViabilityTimeline } from './ViabilityTimeline'
 
 const DEFAULT_INPUTS: FarmInputs = {
   region: 'east_england',
@@ -173,9 +175,14 @@ function App() {
     () => computeBusinessViability(inputs, assessment),
     [inputs, assessment],
   )
+  const projection = useMemo(
+    () => computeBusinessProjection(inputs, assessment, viability),
+    [inputs, assessment, viability],
+  )
 
   const fmt = (n: number, digits = 0) =>
     n.toLocaleString('en-GB', { maximumFractionDigits: digits })
+  const fmtYear = (n: number) => n.toFixed(1).replace(/\.0$/, '')
 
   const [planOpen, setPlanOpen] = useState(false)
   const [riskOpen, setRiskOpen] = useState(false)
@@ -609,6 +616,36 @@ function App() {
                 </span>
               </div>
 
+              <div className="timeline-block">
+                <div className="timeline-summary">
+                  <div>
+                    <span className="timeline-kicker">Break year</span>
+                    <strong className={projection.breakYear === null ? 'timeline-ok' : 'timeline-risk'}>
+                      {projection.breakYear === null ? 'No break by 2040' : fmtYear(projection.breakYear)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="timeline-kicker">2040 margin</span>
+                    <strong className={projection.margin2040 >= 0 ? 'timeline-ok' : 'timeline-risk'}>
+                      {projection.margin2040 >= 0 ? '+' : '−'}£{fmt(Math.abs(projection.margin2040PerHa))}
+                      <span className="totals-unit">/ha</span>
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="timeline-kicker">Pressure absorbed</span>
+                    <strong>
+                      {projection.breakEvenPressure === null
+                        ? '100%'
+                        : `${Math.round(projection.breakEvenPressure * 100)}%`}
+                    </strong>
+                  </div>
+                </div>
+                <ViabilityTimeline projection={projection} />
+                <div className="timeline-note">
+                  Price, land, water, compliance and finance assumptions phase from 2026 to 2040.
+                </div>
+              </div>
+
               <RevenueBar viability={viability} />
 
               <div className="finbloc">
@@ -951,12 +988,18 @@ function App() {
               <li><b>Water revenue loss</b> = irrigated ha × 40% × £150/ha; fires only when Water &lt; 75 AND region is water-stressed.</li>
               <li><b>Net position per ha</b> = upside per ha − exposure per ha (positive = net gain from transition).</li>
               <li><b>Impact as % revenue</b> = total impact / total revenue (denominator includes upside, intentionally).</li>
+              <li><b>Projection break year</b> = first year where projected total costs exceed projected total revenue between 2026 and 2040; if the crossing falls between two annual points, the displayed year is interpolated.</li>
             </ul>
 
             <h3 className="modal-section-title">Indicative — defensible ballpark</h3>
             <ul className="assumptions-list">
               <li><b>2040 thresholds</b> (CCC + Defra-aligned) — freshwater 2,500 m³/ha, N 180 kg/ha, emissions 4.0 tCO₂e/ha, land 500 ha. <i>Used in:</i> Water / Supply / Soil / Land vector scoring.</li>
               <li><b>Crop prices £/t</b> — wheat 900, OSR 950, barley 750, other 700 (UK farmgate 2024–25). <i>Used in:</i> crop revenue.</li>
+              <li><b>Crop price trajectory</b> — annual growth by crop from 1.3–2.1%; current weighted assumption is {(projection.assumptions.weightedCropPriceGrowth * 100).toFixed(1)}%/yr for this crop mix. <i>Used in:</i> revenue curve.</li>
+              <li><b>Operating cost ratio</b> — 68–76% of crop revenue by business model; current assumption is {(projection.assumptions.operatingCostRatio * 100).toFixed(0)}%. <i>Used in:</i> cost curve.</li>
+              <li><b>Land value</b> — regional 2026 land value baseline £{fmt(projection.assumptions.landValuePerHa2026)}/ha, growing 1.2%/yr with capital-rate surcharge for land-pressure risk. <i>Used in:</i> land cost curve.</li>
+              <li><b>Water cost trajectory</b> — £0.015/m³ in 2026 rising to £{projection.assumptions.waterCostPerM32040.toFixed(3)}/m³ by 2040 under regional water stress. <i>Used in:</i> water cost curve.</li>
+              <li><b>Compliance, finance and insurance</b> — phased traceability / disclosure costs and nature-risk capital premium scale with Water, Supply, Biodiversity and composite deficits. <i>Used in:</i> total cost curve.</li>
               <li><b>Subsidy bounds £120–£400/ha</b> — floor = SFI base; ceiling = BPS-era + stacked SFI base. <i>Used in:</i> subsidy income clamp.</li>
               <li><b>N price uplift £100/t</b> (£280 → £380; CBAM + carbon-priced trajectory). <i>Used in:</i> N cost shock.</li>
               <li><b>Water revenue loss £150/ha × 40%</b> of irrigated area. <i>Used in:</i> water cost shock.</li>
@@ -989,7 +1032,7 @@ function App() {
               <li><b>Energy / fuel cost not modelled</b> — would add ~£10–20k/yr with carbon-priced diesel.</li>
               <li><b>Stranded assets not quantified</b> — specialised irrigation / fertiliser-application infrastructure becoming uneconomic.</li>
               <li><b>Yield is fixed</b> — no yield reduction from input cuts or PPP bans.</li>
-              <li><b>Single 2040 snapshot</b> — no time trajectory; tool shows <i>if</i> the model breaks, not <i>when</i>.</li>
+              <li><b>Projection is annual, not seasonal</b> — no commodity volatility, working-capital timing, debt amortisation or tenant / owner-occupier split.</li>
             </ul>
 
             <footer className="modal-foot">

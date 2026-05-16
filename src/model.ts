@@ -169,7 +169,7 @@ type Totals = {
   n_applied_t: number           // tonnes N/yr
 }
 
-type Assessment = {
+export type Assessment = {
   score: number
   band: Band
   vectors: VectorResult[]
@@ -465,6 +465,42 @@ const CROP_PRICE_PER_T: Partial<Record<CropKey, number>> = {
 }
 const DEFAULT_CROP_PRICE_PER_T = 700
 
+const CROP_PRICE_ANNUAL_GROWTH: Partial<Record<CropKey, number>> = {
+  wheat: 0.016,
+  barley: 0.014,
+  oats: 0.013,
+  osr: 0.018,
+  sugar_beet: 0.015,
+  potatoes: 0.02,
+  field_beans: 0.021,
+  peas: 0.021,
+  maize: 0.014,
+  linseed: 0.018,
+  rye: 0.013,
+}
+const DEFAULT_CROP_PRICE_ANNUAL_GROWTH = 0.015
+
+const LAND_VALUE_PER_HA_2026: Record<RegionKey, number> = {
+  east_england: 11_500,
+  south_east: 12_000,
+  south_west: 10_500,
+  east_midlands: 10_800,
+  west_midlands: 10_200,
+  yorkshire: 9_800,
+  north_east: 8_900,
+  north_west: 9_200,
+  scotland: 7_800,
+  wales: 8_400,
+  northern_ireland: 9_000,
+}
+
+const OPERATING_COST_RATIO: Record<BusinessModelKey, number> = {
+  high_input_commodity: 0.76,
+  regenerative: 0.7,
+  contract_grower: 0.74,
+  diversified: 0.68,
+}
+
 export type VerdictKey = 'structural' | 'transformation' | 'viable'
 
 export type Verdict = {
@@ -499,6 +535,42 @@ export type BusinessViability = {
   impactAsPercentOfRevenue: number
   verdict: Verdict
   flags: LendingFlag[]
+}
+
+export type ProjectionYear = {
+  year: number
+  pressure: number
+  cropRevenue: number
+  subsidyIncome: number
+  transitionUpside: number
+  totalRevenue: number
+  operatingCosts: number
+  landCost: number
+  waterCost: number
+  complianceCost: number
+  financeAndInsuranceCost: number
+  naturePolicyCosts: number
+  totalCosts: number
+  netMargin: number
+  marginPct: number
+}
+
+export type BusinessProjection = {
+  startYear: number
+  endYear: number
+  years: ProjectionYear[]
+  breakYear: number | null
+  breakEvenPressure: number | null
+  revenue2040: number
+  costs2040: number
+  margin2040: number
+  margin2040PerHa: number
+  assumptions: {
+    weightedCropPriceGrowth: number
+    operatingCostRatio: number
+    landValuePerHa2026: number
+    waterCostPerM32040: number
+  }
 }
 
 const WATER_STRESSED_REGIONS: ReadonlyArray<RegionKey> = [
@@ -664,5 +736,153 @@ export function computeBusinessViability(
     impactAsPercentOfRevenue,
     verdict: verdictFor(impactAsPercentOfRevenue, input.businessModelType),
     flags,
+  }
+}
+
+export function computeBusinessProjection(
+  input: FarmInputs,
+  assessment: Assessment,
+  viability: BusinessViability,
+): BusinessProjection {
+  const startYear = 2026
+  const endYear = 2040
+  const region = REGIONS.find((r) => r.key === input.region)!
+  const operatingCostRatio = OPERATING_COST_RATIO[input.businessModelType]
+  const landValuePerHa2026 = LAND_VALUE_PER_HA_2026[input.region]
+  const landScore = assessment.vectors.find((v) => v.key === 'land')!.score
+  const waterScore = assessment.vectors.find((v) => v.key === 'water')!.score
+  const supplyScore = assessment.vectors.find((v) => v.key === 'supply')!.score
+  const biodivScore = assessment.vectors.find((v) => v.key === 'biodiv')!.score
+  const totalHa = assessment.totalHa
+  const horizon = endYear - startYear
+  const waterRisk = clamp((75 - waterScore) / 75, 0, 1)
+  const supplyRisk = clamp((75 - supplyScore) / 75, 0, 1)
+  const biodivRisk = clamp((75 - biodivScore) / 75, 0, 1)
+  const landRisk = clamp((75 - landScore) / 75, 0, 1)
+  const natureRisk = clamp((75 - assessment.score) / 75, 0, 1)
+  const waterRegion = WATER_STRESSED_REGIONS.includes(input.region)
+  const landCapitalRate2040 =
+    0.018 + 0.012 * landRisk + (input.businessModelType === 'high_input_commodity' ? 0.004 : 0)
+  const waterCostPerM32040 =
+    0.015 + 0.045 * region.waterMod + (waterRegion ? 0.025 : 0) * waterRisk
+  const demandShift2040 =
+    input.businessModelType === 'regenerative'
+      ? 0.04
+      : input.businessModelType === 'diversified'
+        ? 0.02
+        : input.businessModelType === 'contract_grower'
+          ? -0.03 * natureRisk
+          : -0.08 * natureRisk
+
+  let weightedGrowth = 0
+  let weightedRevenueBase = 0
+  const years: ProjectionYear[] = []
+
+  for (let year = startYear; year <= endYear; year++) {
+    const elapsed = year - startYear
+    const pressure = horizon > 0 ? elapsed / horizon : 1
+    const landValue = landValuePerHa2026 * Math.pow(1.012, elapsed)
+    const landCapitalRate = 0.018 + (landCapitalRate2040 - 0.018) * pressure
+    const waterCostPerM3 = 0.015 + (waterCostPerM32040 - 0.015) * pressure
+
+    let cropRevenue = 0
+    for (const row of input.crops) {
+      if (!row.crop || row.hectares <= 0) continue
+      const crop = CROPS.find((c) => c.key === row.crop)
+      if (!crop) continue
+      const basePrice = CROP_PRICE_PER_T[row.crop] ?? DEFAULT_CROP_PRICE_PER_T
+      const growth = CROP_PRICE_ANNUAL_GROWTH[row.crop] ?? DEFAULT_CROP_PRICE_ANNUAL_GROWTH
+      const cropBaseRevenue = row.hectares * crop.yield_t_ha * basePrice
+      const demandModifier = 1 + demandShift2040 * pressure
+      cropRevenue += cropBaseRevenue * Math.pow(1 + growth, elapsed) * demandModifier
+
+      if (year === startYear) {
+        weightedGrowth += cropBaseRevenue * growth
+        weightedRevenueBase += cropBaseRevenue
+      }
+    }
+
+    const subsidyIncome = Math.max(0, viability.subsidyIncome - viability.subsidyAtRisk * pressure)
+    const transitionUpside = viability.transitionUpside * pressure
+    const totalRevenue = cropRevenue + subsidyIncome + transitionUpside
+    const operatingCosts =
+      cropRevenue * operatingCostRatio * (1 + pressure * (0.018 + 0.035 * supplyRisk))
+    const landCost = totalHa * landValue * landCapitalRate
+    const waterCost = assessment.totals.freshwater_m3 * waterCostPerM3
+    const complianceCost =
+      totalRevenue *
+      pressure *
+      (0.006 +
+        0.01 * biodivRisk +
+        0.008 * supplyRisk +
+        (input.businessModelType === 'high_input_commodity' ? 0.006 : 0))
+    const financeAndInsuranceCost =
+      totalRevenue *
+      (0.012 +
+        pressure *
+          (0.006 +
+            0.018 * natureRisk +
+            (input.businessModelType === 'regenerative' ? -0.004 : 0)))
+    const naturePolicyCosts =
+      pressure *
+      (viability.nCostShock + viability.waterRevenueLoss + totalHa * 18 * landRisk)
+    const totalCosts =
+      operatingCosts +
+      landCost +
+      waterCost +
+      complianceCost +
+      financeAndInsuranceCost +
+      naturePolicyCosts
+    const netMargin = totalRevenue - totalCosts
+
+    years.push({
+      year,
+      pressure,
+      cropRevenue,
+      subsidyIncome,
+      transitionUpside,
+      totalRevenue,
+      operatingCosts,
+      landCost,
+      waterCost,
+      complianceCost,
+      financeAndInsuranceCost,
+      naturePolicyCosts,
+      totalCosts,
+      netMargin,
+      marginPct: totalRevenue > 0 ? netMargin / totalRevenue : 0,
+    })
+  }
+
+  let breakYear: number | null = null
+  let breakEvenPressure: number | null = null
+  for (let i = 1; i < years.length; i++) {
+    const prev = years[i - 1]
+    const curr = years[i]
+    if (prev.netMargin >= 0 && curr.netMargin < 0) {
+      const share = prev.netMargin / (prev.netMargin - curr.netMargin)
+      breakYear = prev.year + share
+      breakEvenPressure = prev.pressure + (curr.pressure - prev.pressure) * share
+      break
+    }
+  }
+
+  const last = years[years.length - 1]
+  return {
+    startYear,
+    endYear,
+    years,
+    breakYear,
+    breakEvenPressure,
+    revenue2040: last.totalRevenue,
+    costs2040: last.totalCosts,
+    margin2040: last.netMargin,
+    margin2040PerHa: totalHa > 0 ? last.netMargin / totalHa : 0,
+    assumptions: {
+      weightedCropPriceGrowth: weightedRevenueBase > 0 ? weightedGrowth / weightedRevenueBase : 0,
+      operatingCostRatio,
+      landValuePerHa2026,
+      waterCostPerM32040,
+    },
   }
 }
